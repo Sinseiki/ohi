@@ -13,6 +13,18 @@
 		ohi_KBD_type = 'QWERTY';  // 기준 자판 (QWERTY, QWERTZ, AZERTY)
 		ohi_KE = 'Ko';  // 시작할 때의 한·영 상태 (한글: Ko, 영문: En)
 	//-->
+
+	(function() {
+		var theme = null;
+		try { theme = localStorage.getItem('ohi_theme'); } catch(e) {}
+		if(theme !== 'light' && theme !== 'dark') {
+			try {
+				theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+			} catch(e) { theme = 'light'; }
+		}
+		document.documentElement.className += (document.documentElement.className ? ' ' : '') + 'theme-' + theme;
+	})();
+
 	</script>
 	<script src="keyboard_layouts.js"></script>
 	<script src="additional_layouts.js"></script>
@@ -32,6 +44,30 @@
 			}
 			document.getElementById('manual').style.display = (n!=3) ? 'block' : 'none';
 			show_keyboard_layout();
+		}
+
+		function toggleTheme() {
+			var html = document.documentElement;
+			var dark = /(^|\s)theme-dark(\s|$)/.test(html.className);
+			html.className = html.className.replace(/(^|\s)theme-(dark|light)(?=\s|$)/g, ' ').replace(/^\s+|\s+$/g, '').replace(/\s+/g, ' ');
+			var theme = dark ? 'light' : 'dark';
+			html.className += (html.className ? ' ' : '') + 'theme-' + theme;
+			try { localStorage.setItem('ohi_theme', theme); } catch(e) {}
+			var toggle = document.getElementById('theme_toggle');
+			if(toggle) {
+				toggle.innerHTML = theme == 'dark' ? '☀' : '☾';
+				toggle.title = theme == 'dark' ? '밝은 화면으로 바꾸기' : '어두운 화면으로 바꾸기';
+			}
+			inputText_focus();
+		}
+
+		function syncThemeToggle() {
+			var dark = /(^|\s)theme-dark(\s|$)/.test(document.documentElement.className);
+			var toggle = document.getElementById('theme_toggle');
+			if(toggle) {
+				toggle.innerText = dark ? '☀' : '☾';
+				toggle.title = dark ? '밝은 화면으로 바꾸기' : '어두운 화면으로 바꾸기';
+			}
 		}
 
 		function appendChild(parentNode,nodeName,className,idName,innerHTML,width,padding) {
@@ -173,10 +209,45 @@
 		div.credit { font-family:Arial,sans-serif; font-size:10pt; color:RosyBrown; text-align:center; line-height:1.4em; }
 		div.credit a { color:RosyBrown; text-decoration:none; font-weight:bold; }
 		div.credit a:hover { text-decoration:underline; }
+
+		/* dark theme */
+		html.theme-dark {color-scheme:dark; --bg:#111318; --surface:#191c23; --surface2:#20242d; --input:#0d0f14; --border:#343a46; --border2:#454c59; --text:#e6e9ef; --muted:#aeb5c2; --link:#9bbce0;}
+		html.theme-dark body {background:#111318; color:#e6e9ef;}
+		html.theme-dark input, html.theme-dark textarea, html.theme-dark button, html.theme-dark select {background:#191c23; color:#e6e9ef; border-color:#343a46;}
+		html.theme-dark span.emph {color:#f2f4f8;}
+		html.theme-dark div.title {color:#c7a978;}
+		html.theme-dark a, html.theme-dark div#tab3 a, html.theme-dark a.layout_group_link {color:#9bbce0;}
+		html.theme-dark a:hover {color:#c3d9f0;}
+		html.theme-dark div.menu {background:#20242d;}
+		html.theme-dark div.menu a {color:#e6e9ef;}
+		html.theme-dark div.this, html.theme-dark span.menu, html.theme-dark kbd.menu {background:#3d4654;}
+		html.theme-dark div.over, html.theme-dark kbd.over, html.theme-dark div.menu:hover {background:#292e39;}
+		html.theme-dark div.menu, html.theme-dark div.this {border-color:#454c59;}
+		html.theme-dark div#ohi_content {background:#191c23; border-color:#454c59;}
+		html.theme-dark input.text, html.theme-dark textarea#inputText {background:#0d0f14; color:#edf0f5; border-color:#343a46; caret-color:#f4f6f8;}
+		html.theme-dark input.text:focus, html.theme-dark textarea#inputText:focus {border-color:#6685a8; outline:1px solid #6685a8;}
+		html.theme-dark div#NCR_text, html.theme-dark div#direct_typing_text, html.theme-dark div#reverse_direct_typing_text {background:#0d0f14; color:#e6e9ef; border-color:#343a46;}
+		html.theme-dark hr {border-color:#343a46;}
+
+		html.theme-dark div.e1 {background:#66552a;}
+		html.theme-dark div.e2 {background:#345d82;}
+		html.theme-dark div.e3 {background:#66533b;}
+		html.theme-dark div.h1 {background:#285f78;}
+		html.theme-dark div.h2 {background:#76364f;}
+		html.theme-dark div.h3 {background:#386b47;}
+		html.theme-dark div.gin-hol {background:#604785;}
+		html.theme-dark div.e1, html.theme-dark div.e2, html.theme-dark div.e3, html.theme-dark div.h1, html.theme-dark div.h2, html.theme-dark div.h3 {color:#edf0f5; border-color:#59616e #292e36 #292e36 #59616e;}
+		html.theme-dark div.e1:hover, html.theme-dark div.e2:hover, html.theme-dark div.e3:hover, html.theme-dark div.h1:hover, html.theme-dark div.h2:hover, html.theme-dark div.h3:hover {filter:brightness(1.14);}
+		html.theme-dark div.pressed {background:#655d37;}
+		html.theme-dark div.ue, html.theme-dark div.de {color:#b3bac6;}
+		html.theme-dark div.e2 div.ue {color:#edf0f5;}
+		html.theme-dark kbd.status {color:#f4f6f8; background:#3e5f91;}
+		html.theme-dark div.credit, html.theme-dark div.credit a {color:#bd929a;}
+		html.theme-dark ::selection {background:#395574; color:#f5f7fa;}
 	</style>
 </head>
 
-<body onload="show_keyboard_layout(1);inputText_focus()">
+<body onload="show_keyboard_layout(1);syncThemeToggle();inputText_focus()">
 <div id="content">
 	<div class="title">
 		<span class="emph">오</span>라이 <span class="emph" style="letter-spacing:-0.4em;">ㅎ</span><span style="letter-spacing:-0.3em;">ㅏ</span>그 <span class="emph">이</span>려기 -
@@ -197,6 +268,9 @@
 				</div>
 			</div>
 			<div class="right_menu">
+				<div class="menu" onclick="toggleTheme()">
+					<a><span title="밝은 화면으로 바꾸기" id="theme_toggle">☀</span></a>
+				</div>
 				<div class="menu">
 					<a href="http://3beol.gitlab.io" target="_blank"><span>3beol OHI</span></a>	
 				</div>
