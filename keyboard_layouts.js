@@ -57,7 +57,7 @@ keyboard_layouts.push({KE: 'Ko', type_name: '3-91_noshift', full_name: '3-91 조
 keyboard_layouts.push({KE: 'Ko', type_name: 'Sin3-P2', full_name: '신세벌식 P2', layout: K3_Sin3_P2_layout, hangeul_combination_table: K3_Sin3_P2_combination_table, extended_sign_layout: K3_Sin3_extended_sign_layout, old_hangeul_layout_type_name: 'Sin3-P2-y', link: 'https://pat.im/1136'});
 keyboard_layouts.push({KE: 'Ko', type_name: 'Sin3-P2-y', full_name: '신세벌식 P2 옛한글', layout: K3_Sin3_P2_y_layout, capslock_layout: K3_Sin3_P2_y_capslock_layout, extended_sign_layout: K3_Sin3_extended_sign_layout, capslock_extended_sign_layout: null, hangeul_combination_table: K3_Sin3_P2_yeshangeul_combination_table, link: 'https://pat.im/1136#2-4'});
 
-keyboard_layouts.push({KE: 'Ko', type_name: '3m-Semoe', full_name: '세모이 2018 (세벌식 모아치기 e-2018)', layout: K3_Semoe_2018_layout, sublayout: K3_Semoe_2018_sublayout, extended_sign_layout: K3_Semoe_extended_sign_layout, moachigi_hangeul_combination_table: K3_Semoe_2018_combination_table, moachigi_multikey_abbreviation_table: K3_Semoe_2018_moachigi_multikey_abbreviation_table, link: 'http://ssg.wo.tc/220526834927'});
+keyboard_layouts.push({KE: 'Ko', type_name: '3m-Semoe', full_name: '세모이 (세벌식 모아치기 e)', layout: K3_Semoe_layout, sublayout: K3_Semoe_sublayout, extended_sign_layout: K3_Semoe_extended_sign_layout, moachigi_hangeul_combination_table: K3_Semoe_combination_table, moachigi_multikey_abbreviation_table: K3_Semoe_moachigi_multikey_abbreviation_table, link: 'https://blog.naver.com/eekdland/220526834927'});
 
 function input_keyboard_layout_info() {
 	var i,j;
@@ -1186,7 +1186,7 @@ function input_keyboard_layout_info() {
 	K3_Sin3_P2_y_capslock_layout[40]=[0x0000,0x0000];	/* 0x49 I */
 	K3_Sin3_P2_y_capslock_layout[46]=[0x0000,0x0000];	/* 0x4F O */
 
-	K3_Semoe_2018_layout = [
+	K3_Semoe_layout = [
 		0x0021, /* 0x21 exclam: exclamation mark */
 		0x0022, /* 0x22 quotedbl: quotatioin mark */
 		0x0023, /* 0x23 numbersign: number sign */
@@ -1283,7 +1283,7 @@ function input_keyboard_layout_info() {
 		0x007E  /* 0x7E asciitilde: tilde */
 	];
 
-	K3_Semoe_2018_sublayout = [
+	K3_Semoe_sublayout = [
 		0x0000,	/* 0x21 exclam */
 		0x0000,	/* 0x22 quotedbl */
 		0x0000,	/* 0x23 numbersign */
@@ -2275,7 +2275,7 @@ function input_combination_table_info() {
 		{phonemes: [0x11CE,0x11C2], char: 0x11B4}  /* jongseong lieul-dieud + hieuh = lieul-tieut */
 	].concat(moachigi_combination_table_default);
 
-	K3_Semoe_2018_combination_table = [
+	K3_Semoe_combination_table = [
 		{phonemes: [0x1169,0x1161,0x1175], char: 0x116B}, /* jungseong o + a + i = wae */
 		{phonemes: [0x11A8,0x11b7,0x11BB], char: 0x11AA}, /* jongseong gieug + mieum + ssang_sieus = gieug-sieus */
 		{phonemes: [0x11AF,0x11B8,0x11BB], char: 0x11C0}, /* jongseong lieul + bieub + ssang_sieus = tieut */
@@ -2326,7 +2326,7 @@ function input_combination_table_info() {
 		{phonemes: [0x11C2,0x11B8], char: 0x11C1}  /* jongseong hieuh + bieub = pieup */
 	].concat(moachigi_combination_table_default);
 
-	K3_Semoe_2018_moachigi_multikey_abbreviation_table = [
+	K3_Semoe_moachigi_multikey_abbreviation_table = [
 		{keys: ['J','K'], chars: [-1]}, /* 기호 확장 상태 ① */
 		{keys: ['J','L'], chars: [-2]}, /* 기호 확장 상태 ② */
 		{keys: ['J',':'], chars: [-3]}, /* 기호 확장 상태 ③ */
