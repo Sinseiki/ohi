@@ -4,6 +4,7 @@
 
 ohi.js는 [![License](https://img.shields.io/badge/license-GPL-green.svg)](http://www.gnu.org/licenses/gpl.html)을 따릅니다.
 
-* 온라인 한글 입력기 (고친 판) : http://ohi.pat.im
+* 온라인 한글 입력기 (신세기 고친 판) : https://sinseiki.github.io/ohi
+* 온라인 한글 입력기 (팥알 고친 판) : https://ohi.pat.im
 * 온라인 한글 입력 (이호석 원판) : http://ohi.pat.im/org
 * 더 자세한 정보 : https://pat.im/910
