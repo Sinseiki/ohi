@@ -512,7 +512,7 @@ function ohiInsert(f,m,q) { // Insert
 		}
 	}
 
-	if(is_moachigi_input() && NFD_stack.phoneme.length && unicode_NFD_hangeul_code.indexOf(c)<0) complete_hangeul_syllable(f);
+	if(is_moachigi_input() && NFD_stack.phoneme.length && typeof q=='number' && unicode_NFD_hangeul_code.indexOf(c)<0) complete_hangeul_syllable(f);
 	
 	ohiInput(f,m,c);
 
@@ -2437,6 +2437,7 @@ function with_shift_key(key) {	// 윗글쇠를 누르고 친 글쇠인지
 
 function is_old_hangeul_input() {
 	if(current_layout_info.type_name && current_layout_info.type_name.substr(-2)=='-y') return true;
+	if(current_layout_info.type_name=='3m-Semoe') return true;
 	if(option.enable_old_hangeul_input && typeof current_layout_info.old_hangeul_layout_type_name != 'undefined')	return true;
 	return false;
 }
