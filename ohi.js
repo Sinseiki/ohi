@@ -3272,7 +3272,7 @@ function show_keyboard_layout(type) {
 
 	var sublayout = find_sublayout();
 	
-	if(sublayout.length && !is_old_hangeul_input()
+	if(sublayout.length && (!is_old_hangeul_input() || current_layout_info.type_name=='3m-Semoe')
 	 && (option.enable_double_final_ext || current_layout_info.type_name.substr(0,3)=='3m-' || current_layout_info.type_name=='3-18Na' || current_layout_info.type_name.substr(0,3)=='3-D' || current_layout_info.type_name.substr(0,9)=='Sin3-Cham')
 	 && sign_ext_state<=0) {
 		insert_sublayout_table(ue, de, uh, dh, sublayout);
