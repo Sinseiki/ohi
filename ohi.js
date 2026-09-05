@@ -3430,12 +3430,12 @@ function show_keyboard_layout(type) {
 				if(sublayout[14]) // 빗금(/) 자리의 겹낱자 확장 배열 홀소리
 					document.getElementById('uh51').innerHTML = ohiHangeul3_HanExtKey ? '' : '<font size="1">('+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[14]))+')</font>';
 				if(sublayout[72]) // 신세벌식 P2의 오른쪽 ㅡ 자리 (i 자리)
-					document.getElementById('de22').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="font-size:10px; letter-spacing:-2px;color:#333;">'+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[72]))+'</span>';
+					document.getElementById('de22').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span class="sublayout_emph" style="font-size:10px; letter-spacing:-2px;">'+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[72]))+'</span>';
 				if(sublayout[78]) // 신세벌식 P2의 오른쪽 ㅜ 자리 (o 자리)
-					document.getElementById('de23').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="font-size:10px; letter-spacing:-2px;color:#333;">'+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[78]))+'</span>';
+					document.getElementById('de23').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span class="sublayout_emph" style="font-size:10px; letter-spacing:-2px;">'+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[78]))+'</span>';
 				if(sublayout[79]) {
 					if(sublayout[79]==0x119E) // P 자리의 겹낱자 확장 배열 (신세벌식 P2의 오른쪽 아래아)
-						document.getElementById('de24').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="font-size:10px; letter-spacing:-3px;color:#333;">'+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[79]))+'</span>';
+						document.getElementById('de24').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span class="sublayout_emph" style="font-size:10px; letter-spacing:-3px;">'+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[79]))+'</span>';
 					else
 						document.getElementById('de24').innerHTML = ohiHangeul3_HanExtKey ? '' : '<font size="1">'+String.fromCharCode(convert_into_compatibility_hangeul_letter(sublayout[79]))+'</font>';
 				}
@@ -3455,10 +3455,9 @@ function show_keyboard_layout(type) {
 
 		if(is_old_hangeul_input() && !sign_ext_state) { // 신세벌식 P, P2 옛한글 받침 배열
 			document.getElementById('de32').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="margin-left:-1px;background:black;color:#fff;letter-spacing:0px;font-size:0.7em;">받침</span>';
-			document.getElementById('de15').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="color:#666">ㅿ</span>';
-			document.getElementById('de29').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="color:#666">ㆁ</span>';
-			document.getElementById('de31').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="color:#666">ㆆ</span>';
-			document.getElementById('de31').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span style="color:#666">ㆆ</span>';
+			document.getElementById('de15').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span class="old_hangeul_aux">ㅿ</span>';
+			document.getElementById('de29').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span class="old_hangeul_aux">ㆁ</span>';
+			document.getElementById('de31').innerHTML = ohiHangeul3_HanExtKey ? '' : '<span class="old_hangeul_aux">ㆆ</span>';
 		}
 	}
 
