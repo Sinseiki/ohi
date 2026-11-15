@@ -6493,12 +6493,12 @@ function input_additional_combination_table_info() {
 		[0x110B1103,0x1104], /* choseong ieung + dieud = ssang_dieud */
 		[0x110B1107,0x1108], /* choseong ieung + bieub = ssang_bieub */
 		[0x110B1109,0x110A], /* choseong ieung + sieus = ssang_sieus */
-		[0x11001109,0x110D], /* choseong gieun + sieus = ssang_jieuj */
+		[0x110C110B,0x110D], /* choseong jieuj + ieung = ssang_jieuj */
 	]);
 
 	K3_Sin3_Cham_additional_combination_table	= [
 		[0x11751161,0x1163], /* jungseong i + a = ya */
-		[0x11A811B7,0x11A9], /* jongseong gieug + mieum = ssang_gieug */
+		[0x11A811B7,0x11BF], /* jongseong gieug + mieum = kieuk */
 		[0x11A811BB,0x11AA], /* jongseong gieug + ssang_sieus = gieug-sieus */
 		[0x11BA11A8,0x11AA], /* jongseong sieus + gieug = gieug-sieus */
 		[0x11A811AB,0x11AC], /* jongseong gieug + nieun = lieul-jieuj */
@@ -6520,7 +6520,6 @@ function input_additional_combination_table_info() {
 		[0x11C211AF,0x11B6], /* jongseong hieuh + lieul = lieul-hieuh */
 		[0x11BC11B7,0x11B6], /* jongseong ieung + mieum = lieul-hieuh */
 		[0x11BA11B8,0x11B9], /* jongseong sieus + bieub = bieub-sieus */
-		[0x11A811B8,0x11BF], /* jongseong gieug + bieub = kieuk */
 
 		//[0x11091100,0x11AA], /* choseong sieus + gieug = jongseong gieug-sieus */
 		//[0x110C1102,0x11AC], /* choseong jieuj + nieun = jongseong nieun-jieuj */
