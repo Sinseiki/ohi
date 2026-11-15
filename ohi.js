@@ -3119,7 +3119,7 @@ function show_options() {
 		else opt.style.display = 'none';
 
 		opt_name = 'sunalae';
-		ft = 'show_options();inputText_focus()"><label title="두벌식 자판으로 홀소리 글쇠를 거듭 눌러 겹닿소리(된소리) 넣기">순아래 조합 <a href="https://sites.google.com/site/tinyduckn/dubeolsig-sun-alae" target="_blank">ⓘ</a></label>';
+		ft = 'show_options();inputText_focus()"><label title="두벌식 자판으로 홀소리 글쇠를 거듭 눌러 겹닿소리(된소리) 넣기">모음 반복 순아래 조합 <a href="https://sites.google.com/site/tinyduckn/dubeolsig-sun-alae" target="_blank">ⓘ</a></label>';
 		opt = add_option(opts, opt_name, ft);
 		if(!is_old_hangeul_input() && !is_phonemic_writing_input() && !is_galmadeuli_input() && type_name.substr(0,2)=='2-' && type_name.substr(0,5)!='2-sun') opt.style.display = 'block';
 		else opt.style.display = 'none';
@@ -3872,7 +3872,7 @@ function ohiChange(KE, type_name) {
 function ohiChange_between_same_type(type) {	// 같은 한·영 종류의 배열 바꾸기 (Ko는 주요 배열만 간추림)
 	var i,j=-1;
 	var En_type_array = ['QWERTY','Dvorak','Colemak','Workman'];
-	var Ko_type_array = ['2-KSX5002','2-KPS9256','Sin3-P2','3m-Semoe','3-P3'];
+	var Ko_type_array = ['2-KSX5002','2-KPS9256','2-Dujule','Sin3-P2','3m-Semoe','3-P3'];
 
 	if(type=='En') {
 		for(i=0;i<En_type_array.length;++i)
