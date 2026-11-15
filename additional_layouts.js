@@ -70,7 +70,7 @@ additional_layouts.push({KE: 'Ko', type_name: 'Sin3-M', full_name: '신세벌식
 additional_layouts.push({KE: 'Ko', type_name: 'Sin3-P', full_name: '신세벌식 P', layout: K3_Sin3_P_layout, extended_hangeul_layout: K3_Sin3_P_y_layout, extended_sign_layout: K3_Sin3_extended_sign_layout, /*extended_hangeul_combination_table: K3_Sin3_P_extended_combination_table,*/ old_hangeul_layout_type_name: 'Sin3-P-y', link: 'https://pat.im/1110'});
 additional_layouts.push({KE: 'Ko', type_name: 'Sin3-P-y', full_name: '신세벌식 P 옛한글 조합', layout: K3_Sin3_P_y_layout, capslock_layout: K3_Sin3_P_y_capslock_layout, extended_sign_layout: K3_Sin3_extended_sign_layout, capslock_extended_sign_layout: null, hangeul_combination_table: K3_Sin3_P2_yeshangeul_combination_table, link: 'https://pat.im/1136#2-4'});
 additional_layouts.push({KE: 'Ko', type_name: 'Sin3-Gongdong', full_name: '신세벌식 공동개발안 (연구)', layout: K3_Sin3_Gongdong_layout, ieochigi_hangeul_abbreviation_table: K3_Sin3_Gongdong_abbreviation_table, hangeul_convenience_combination_table: K3_Sin3_Gongdong_additional_combination_table, link: 'http://cafe.daum.net/3bulsikmini0A0/JYgd/31'});
-additional_layouts.push({KE: 'Ko', type_name: 'Sin3-Cham', full_name: '참신세벌식 v18', layout: K3_Sin3_Cham_layout, hangeul_combination_table: K3_Sin3_Cham_combination_table, hangeul_convenience_combination_table: K3_Sin3_Cham_additional_combination_table, link: 'https://doc9107.tistory.com/67'});
+additional_layouts.push({KE: 'Ko', type_name: 'Sin3-Cham', full_name: '참신세벌식 v18', layout: K3_Sin3_Cham_layout, hangeul_combination_table: K3_Sin3_Cham_combination_table, hangeul_convenience_combination_table: K3_Sin3_Cham_additional_combination_table, link: 'https://cafe.daum.net/3bulsik/JMKX/147'});
 
 additional_layouts.push({KE: 'Ko', type_name: 'LGG3-OH-R', full_name: '이건구 한 손 세벌식 오른손', layout: K3_LGG_OH_r, capslock_layout: K3_LGG_OH_r_capslock_layout, hangeul_combination_table: K3_LGG_OH_combination_table, link: 'https://ds1tpt.tistory.com/32'});
 additional_layouts.push({KE: 'Ko', type_name: 'LGG3-OH-L', full_name: '이건구 한 손 세벌식 왼손', layout: K3_LGG_OH_l, capslock_layout: K3_LGG_OH_l_capslock_layout, hangeul_combination_table: K3_LGG_OH_combination_table, link: 'https://ds1tpt.tistory.com/32'});
@@ -6592,12 +6592,12 @@ function input_additional_combination_table_info() {
 		[0x110B1103,0x1104], /* choseong ieung + dieud = ssang_dieud */
 		[0x110B1107,0x1108], /* choseong ieung + bieub = ssang_bieub */
 		[0x110B1109,0x110A], /* choseong ieung + sieus = ssang_sieus */
-		[0x11001109,0x110D], /* choseong gieun + sieus = ssang_jieuj */
+		[0x110C110B,0x110D], /* choseong jieuj + ieung = ssang_jieuj */
 	]);
 
 	K3_Sin3_Cham_additional_combination_table	= [
 		[0x11751161,0x1163], /* jungseong i + a = ya */
-		[0x11A811B7,0x11A9], /* jongseong gieug + mieum = ssang_gieug */
+		[0x11A811B7,0x11BF], /* jongseong gieug + mieum = kieuk */
 		[0x11A811BB,0x11AA], /* jongseong gieug + ssang_sieus = gieug-sieus */
 		[0x11BA11A8,0x11AA], /* jongseong sieus + gieug = gieug-sieus */
 		[0x11A811AB,0x11AC], /* jongseong gieug + nieun = lieul-jieuj */
@@ -6619,7 +6619,6 @@ function input_additional_combination_table_info() {
 		[0x11C211AF,0x11B6], /* jongseong hieuh + lieul = lieul-hieuh */
 		[0x11BC11B7,0x11B6], /* jongseong ieung + mieum = lieul-hieuh */
 		[0x11BA11B8,0x11B9], /* jongseong sieus + bieub = bieub-sieus */
-		[0x11A811B8,0x11BF], /* jongseong gieug + bieub = kieuk */
 
 		//[0x11091100,0x11AA], /* choseong sieus + gieug = jongseong gieug-sieus */
 		//[0x110C1102,0x11AC], /* choseong jieuj + nieun = jongseong nieun-jieuj */
