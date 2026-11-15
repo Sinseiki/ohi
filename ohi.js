@@ -4114,7 +4114,7 @@ function ohiKeydown(e) {
 			tableKey_press(e.keyCode);
 			if(character_combination_queue.length) ohiSelection(f,0);
 			prev_class = [];
-			if(is_moachigi_input()) {
+			if(is_moachigi_input() && !(e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey)) {
 				if(e.preventDefault) e.preventDefault();
 				if(!(ohiQ[0]+ohiQ[3]+ohiQ[6]) && !NFD_stack.phoneme.length && typeof f.selectionEnd != 'undefined' && f.selectionStart != f.selectionEnd) ohiBackspace(f);
 				pressed_key_accumulation(f,e,key);
