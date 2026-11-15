@@ -35,7 +35,7 @@
 **/
 
 var default_En_type = 'QWERTY';
-var default_Ko_type = 'Sin3-P2';
+var default_Ko_type = '3m-Semoe';
 var default_ohi_KBD_type = 'QWERTY';
 var default_ohi_KE = 'Ko';
 
