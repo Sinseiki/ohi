@@ -877,6 +877,8 @@ function Hangeul2_galmadeuli_selection(a) {
 
 function ohiHangeul2(f,e,key) { // 2-Beolsik
 	var i;
+	// OHI 확장: 겹받침 갈마들이와 대체 시프트를 ASCII 기호 앞에서 처리
+	if(typeof OHIExtension != 'undefined' && OHIExtension.tryExtendedInput(f,e,key)) return;
 	if((Ko_type.indexOf('KSX5002')>=0 || Ko_type=='2-KPS9256') && (key<65 || (key-1)%32>25)) {
 		complete_hangeul_syllable(f);
 		ohiInsert(f,0,key);
@@ -885,9 +887,6 @@ function ohiHangeul2(f,e,key) { // 2-Beolsik
 
 	var layout_info = find_current_layout_info();
 	var layout = find_current_layout();
-
-	// OHI 추가 기능: 끝소리 갈마들이는 기존 두벌식 처리보다 먼저 시도
-	if(typeof OHIExtension != 'undefined' && OHIExtension.tryDoubleFinal(f,e,key)) return;
 
 	var c = layout[key-33];
 	if(typeof c == 'object') c = Hangeul2_galmadeuli_selection(c);
@@ -3139,7 +3138,7 @@ function show_options() {
 		opt_name = 'enable_old_hangeul_input';
 		ft = 'ohiChange_enable_old_hangeul_input();ohiStart();inputText_focus()"><label title="옛한글 넣기">옛한글</label>';
 		opt = add_option(opts, opt_name, ft);
-		if(typeof current_layout_info.old_hangeul_layout_type_name != 'undefined' && !(Ko_type.substr(0,2)=='2-' && option.sunalae)) opt.style.display = 'block';
+		if(typeof current_layout_info.old_hangeul_layout_type_name != 'undefined' && !(Ko_type.substr(0,2)=='2-' && option.sunalae) && !(typeof OHIExtension != 'undefined' && OHIExtension.isEnabled())) opt.style.display = 'block';
 		else opt.style.display = 'none';
 
 		opt_name = 'enable_Sin3_diphthong_key';
@@ -3535,6 +3534,8 @@ function show_keyboard_layout(type) {
 	}
 
 	show_keyboard_layout_info();
+
+	if(typeof OHIExtension != 'undefined') OHIExtension.renderAlternateShiftKey();
 }
 
 
@@ -3691,6 +3692,11 @@ function show_keyboard_layout_info() {
 			if(is_old_hangeul_input()) {
 				if(typeof find_layout_info('Ko', current_layout_info.old_hangeul_layout_type_name).full_name != 'undefined')
 					full_name = find_layout_info('Ko', current_layout_info.old_hangeul_layout_type_name).full_name;
+			}
+			if(typeof OHIExtension != 'undefined' && Ko_type=='2-KSX5002' && OHIExtension.isEnabled()) {
+				name += '두겹이 (두벌식 겹받침 e) <a href="https://blog.naver.com/eekdland/224142632310" target="_blank" rel="noopener noreferrer">ⓘ</a>';
+				keyboardLayoutInfo.innerHTML = name;
+				return;
 			}
 			if(typeof current_layout_info.full_name != 'undefined') name += full_name;
 
