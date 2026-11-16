@@ -49,6 +49,11 @@ declare function show_keyboard_layout(type?: any): any;
 declare function show_keyboard_layout_info(): void;
 declare function show_options(): void;
 declare function inputText_focus(): void;
+declare function ohiKeyswap(e: KeyboardEvent, key: number): number;
+declare function tableKey_press(key: number): void;
+declare function ohiChange_KBD_type(): void;
+declare function ohiChange_KE(): void;
+declare function ohiChange_between_same_type(type: string): void;
 
 namespace OHIExtension {
     type SupportedLayout = '2-KSX5002' | '2-Dujule';
@@ -397,7 +402,36 @@ namespace OHIExtension {
     const partialTypes = ['2-KSX5002', '2-KPS9256', '2-Dujule', '2-Gaon26KM'];
     let partialEnabled = false;
     let partialPending = false;
-    let repeatingPartialKey: number | null = null;
+    let partialTarget: HTMLInputElement | HTMLTextAreaElement | null = null;
+    const partialHeldKeys = new Set<string>();
+    let repeatingPartialKey: string | null = null;
+
+    /** 눌림·해제에서 같은 물리 글쇠를 알아볼 수 있게 글쇠 이름을 맞춥니다. */
+    function partialPhysicalKey(e: KeyboardEvent, key?: number) {
+        if (e.code && e.code !== 'Unidentified') return e.code;
+
+        // 오래된 브라우저에서는 keypress의 글자값과 keyup의 글쇠값이 다를 수 있습니다.
+        // 영문 대·소문자와 윗글쇠 기호를 같은 글쇠값으로 맞춥니다.
+        const raw = e.type === 'keypress' ? (e.which || e.keyCode || key || 0) : (e.keyCode || e.which || key || 0);
+        const upper = 97 <= raw && raw <= 122 ? raw - 32 : raw;
+        const shifted: Record<number, number> = {
+            33: 49, 64: 50, 35: 51, 36: 52, 37: 53, 94: 54, 38: 55, 42: 56, 40: 57, 41: 48,
+            45: 189, 95: 189, 61: 187, 43: 187, 91: 219, 123: 219, 93: 221, 125: 221,
+            92: 220, 124: 220, 59: 186, 58: 186, 39: 222, 34: 222, 44: 188, 60: 188,
+            46: 190, 62: 190, 47: 191, 63: 191, 96: 192, 126: 192
+        };
+        return String(e.type === 'keypress' ? shifted[upper] || upper : upper);
+    }
+
+    // 입력창이나 브라우저에서 포커스가 사라지면 미완성 나눠치기를 원래 입력창에 확정합니다.
+    document.addEventListener('focusout', e => {
+        if (e.target === partialTarget) flushPartialChord();
+    }, true);
+    // 마우스로 글을 넣을 자리를 바꾸기 전에도 먼저 모아 둔 글쇠를 입력합니다.
+    document.addEventListener('mousedown', () => {
+        if (partialPending) flushPartialChord();
+    }, true);
+    window.addEventListener('blur', () => flushPartialChord());
 
     /** 요즘 한글 두벌식 자판에서만 이 나눠치기 기능을 쓸 수 있습니다. */
     export function isPartialEnabled() {
@@ -505,70 +539,111 @@ namespace OHIExtension {
         return keys.slice();
     }
 
-    /** 나눠치기 입력을 실제 한글 조합 함수로 넘깁니다. */
-    export function flushPartialChord(f?: HTMLInputElement | HTMLTextAreaElement, e?: any) {
-        // 기존 세모이도 pressed_keys를 쓰므로 나눠치기가 스스로 모은 입력만 다룹니다.
-        if (!partialPending) return;
-        partialPending = false;
-        if (!pressed_keys.length) {
+    /** 나눠치기 입력을 실제 한글 조합 함수로 넘기고 눌림 상태를 비웁니다. */
+    export function flushPartialChord(f?: HTMLInputElement | HTMLTextAreaElement, e?: KeyboardEvent) {
+        // 입력을 시작한 곳을 우선합니다. 옵션을 누르거나 다른 입력창으로 옮겨도 대상이 바뀌지 않습니다.
+        const target = partialTarget || f || document.getElementById('inputText') as HTMLTextAreaElement;
+        const keys = partialPending ? pressed_keys.slice() : [];
+        if (partialPending) {
+            pressed_keys = [];
             pressing_keys = 0;
-            return;
         }
-        const target = f && (f.nodeName === 'TEXTAREA' || f.nodeName === 'INPUT')
-            ? f : document.getElementById('inputText') as HTMLTextAreaElement;
-        const keys = pressed_keys.slice();
-        pressed_keys = [];
-        pressing_keys = 0;
-        if (!target) return;
+        partialPending = false;
+        partialTarget = null;
+        partialHeldKeys.clear();
+        repeatingPartialKey = null;
+        if (!target || !keys.length) return;
 
         for (const key of reorderPartialKeys(keys)) {
-            // 한 번에 입력되더라도 각 낱자의 조합 상태를 유지하므로
-            // ㅂ+ㅅ 다음에 ㅏ를 넣으면 겹받침을 온전하게 나눌 수 있습니다.
+            // 글쇠의 순서만 정정하며 실제 낱자 조합은 OHI의 두벌식 함수에 맡깁니다.
             ohiHangeul2(target, e || {}, key);
         }
     }
 
-    /** OHI의 일반 keypress 경로에서 불립니다. */
-    export function tryPartialKeypress(f: HTMLInputElement | HTMLTextAreaElement, e: any, key: number) {
+    /** 최신 브라우저에서는 단축키와 나눠치기 글쇠를 keydown에서 먼저 처리합니다. */
+    export function tryKeydown(f: HTMLInputElement | HTMLTextAreaElement, e: KeyboardEvent) {
+        if (e.isComposing || e.keyCode === 229 || e.metaKey || e.getModifierState?.('AltGraph')) return false;
+
+        // keypress가 생기지 않는 단축키도 keydown에서 처리합니다.
+        // 오래 누른 단축키가 여러 번 실행되지 않도록 되풀이 이벤트는 소비만 합니다.
+        if (!e.altKey && e.ctrlKey && !e.shiftKey && (e.key === 'Enter' || e.keyCode === 13)) {
+            flushPartialChord();
+            if (!e.repeat) ohiChange_KBD_type();
+            tableKey_press(13);
+            return true;
+        }
+        if (!e.altKey && e.ctrlKey !== e.shiftKey && (e.key === ' ' || e.code === 'Space' || e.keyCode === 32)) {
+            flushPartialChord();
+            if (!e.repeat) ohiChange_KE();
+            tableKey_press(32);
+            return true;
+        }
+        if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+            const digit = /^Digit([123])$/.exec(e.code)?.[1] || (/^[123]$/.test(e.key) ? e.key : '');
+            if (digit) {
+                flushPartialChord();
+                if (!e.repeat) ohiChange_between_same_type(['', 'En', 'K2', 'K3'][Number(digit)]);
+                tableKey_press(48 + Number(digit));
+                return true;
+            }
+        }
+
+        // 두벌식 나눠치기 이외의 한글 입력과 세모이 모아치기는 기존 keypress를 유지합니다.
+        if (!isPartialEnabled() || e.ctrlKey || e.altKey || typeof e.key !== 'string' || e.key.length !== 1) return false;
+        const code = e.key.charCodeAt(0);
+        if (code < 33 || code > 126) return false;
+        const key = ohiKeyswap(e, code);
+        if (!partialKind(key)) return false;
+        if (!tryPartialKeypress(f, e, key)) return false;
+        tableKey_press(key);
+        return true;
+    }
+
+    /** OHI의 일반 keypress 경로에서 나눠치기 글쇠를 모읍니다. */
+    export function tryPartialKeypress(f: HTMLInputElement | HTMLTextAreaElement, e: KeyboardEvent, key: number) {
         if (!isPartialEnabled()) return false;
+        if (partialTarget && partialTarget !== f) flushPartialChord();
         if (!partialKind(key)) {
-            // 기호나 대체 시프트가 들어오면 앞선 한글을 먼저 내보냅니다.
-            flushPartialChord(f, e);
-            repeatingPartialKey = null;
+            // 기호나 순아래 글쇠는 먼저 모아 둔 한글을 입력한 뒤 본래 경로에 맡깁니다.
+            flushPartialChord();
             return false;
         }
 
-        // 자동 되풀이 입력은 한 번의 나눠치기로 계속 쌓지 않습니다.
-        if ((repeatingPartialKey === key && e && e.repeat) || pressed_keys.indexOf(key) >= 0) {
-            flushPartialChord(f, e);
-            repeatingPartialKey = key;
+        const physicalKey = partialPhysicalKey(e, key);
+        if (repeatingPartialKey === physicalKey) {
             ohiHangeul2(f, e, key);
             return true;
         }
-        if (repeatingPartialKey === key) {
+        if (e.repeat || partialHeldKeys.has(physicalKey)) {
+            // 글쇠를 길게 눌렀다면 앞서 모은 글쇠를 먼저 입력하고 반복 입력으로 전환합니다.
+            flushPartialChord();
+            repeatingPartialKey = physicalKey;
             ohiHangeul2(f, e, key);
             return true;
         }
+
         repeatingPartialKey = null;
+        partialTarget = f;
+        partialHeldKeys.add(physicalKey);
         pressed_keys.push(key);
-        ++pressing_keys;
+        pressing_keys = partialHeldKeys.size;
         partialPending = true;
         return true;
     }
 
-    /** 마지막 글쇠를 놓으면 입력 묶음을 확정합니다. */
-    export function tryPartialKeyup(f: HTMLInputElement | HTMLTextAreaElement, e: any) {
+    /** 실제로 모아 둔 글쇠를 놓았을 때만 눌림 수를 줄입니다. */
+    export function tryPartialKeyup(_f: HTMLInputElement | HTMLTextAreaElement, e: KeyboardEvent) {
         if (!isPartialEnabled()) return false;
-        if (!partialPending && repeatingPartialKey === null) return true;
-        if (e.keyCode === 16 || e.keyCode === 17 || e.keyCode === 18 || e.keyCode === 91 || e.keyCode === 93) return true;
-        if (repeatingPartialKey !== null && !pressing_keys) {
+        const physicalKey = partialPhysicalKey(e);
+        if (repeatingPartialKey === physicalKey) {
             repeatingPartialKey = null;
             return true;
         }
-        if (pressing_keys && !--pressing_keys) {
-            flushPartialChord(f, e);
-            repeatingPartialKey = null;
-        }
+        if (!partialHeldKeys.delete(physicalKey)) return true;
+
+        pressing_keys = partialHeldKeys.size;
+        if (!partialHeldKeys.size) flushPartialChord(undefined, e);
         return true;
     }
+
 }
