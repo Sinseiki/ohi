@@ -3562,6 +3562,8 @@ function copyToClipboard(text) {
 
 
 function ohiStart() {
+	// 입력 기능이나 자판을 다시 마련하기 전에 나눠치기 입력을 확정합니다.
+	if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord();
 	var i;
 	var textarea=document.getElementById('inputText');
 	var inputs=document.getElementsByTagName("INPUT");
@@ -3936,6 +3938,7 @@ function ohiChange_KE(type) {	// 한·영 상태 바꾸기
 }
 
 function ohiChange_KBD_type(type) {	// 기준 자판 바꾸기
+	if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord();
 	if(type === undefined || !type) {
 		ohi_KBD_type = ohi_KBD_type=='QWERTY' ? 'QWERTZ' : ohi_KBD_type=='QWERTZ' ? 'AZERTY' : 'QWERTY';
 		ohiStart();
@@ -4093,6 +4096,12 @@ function ohiKeydown(e) {
 	var KE = ohi_KE;
 
 	if(f.type=='text' && n=='INPUT' || n=='TEXTAREA') {
+		// 나눠치기와 단축키는 확장 파일에서 먼저 처리합니다. 기존 keypress는 그 밖의 입력에 씁니다.
+		if(typeof OHIExtension != 'undefined' && OHIExtension.tryKeydown(f,e)) {
+			onkeypress_skip=1;
+			if(e.preventDefault) e.preventDefault();
+			return false;
+		}
 		// 나눠치기로 모아 둔 글쇠를 특수 글쇠 처리보다 먼저 입력합니다.
 		if(typeof OHIExtension != 'undefined' && OHIExtension.isPartialEnabled() &&
 		   (e.keyCode==8 || e.keyCode==9 || e.keyCode==13 || e.keyCode==17 || e.keyCode==18 || e.keyCode==32 ||
