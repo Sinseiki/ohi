@@ -886,6 +886,9 @@ function ohiHangeul2(f,e,key) { // 2-Beolsik
 	var layout_info = find_current_layout_info();
 	var layout = find_current_layout();
 
+	// OHI 추가 기능: 끝소리 갈마들이는 기존 두벌식 처리보다 먼저 시도
+	if(typeof OHIExtension != 'undefined' && OHIExtension.tryDoubleFinal(f,e,key)) return;
+
 	var c = layout[key-33];
 	if(typeof c == 'object') c = Hangeul2_galmadeuli_selection(c);
 	c = convert_into_ohi_hangeul_phoneme(c);
@@ -3119,10 +3122,13 @@ function show_options() {
 		else opt.style.display = 'none';
 
 		opt_name = 'sunalae';
-		ft = 'show_options();inputText_focus()"><label title="두벌식 자판으로 홀소리 글쇠를 거듭 눌러 겹닿소리(된소리) 넣기">모음 반복 순아래 조합 <a href="https://sites.google.com/site/tinyduckn/dubeolsig-sun-alae" target="_blank">ⓘ</a></label>';
+		ft = 'if(window.OHIExtension) OHIExtension.onSunalaeToggle();show_options();inputText_focus()"><label title="두벌식 자판으로 홀소리 글쇠를 거듭 눌러 겹닿소리(된소리) 넣기">홀소리 되풀이 순아래 <a href="https://sites.google.com/site/tinyduckn/dubeolsig-sun-alae" target="_blank">ⓘ</a></label>';
 		opt = add_option(opts, opt_name, ft);
 		if(!is_old_hangeul_input() && !is_phonemic_writing_input() && !is_galmadeuli_input() && type_name.substr(0,2)=='2-' && type_name.substr(0,5)!='2-sun') opt.style.display = 'block';
 		else opt.style.display = 'none';
+
+		// OHI 추가 기능의 겹받침 확장 켜고 끄기
+		if(typeof OHIExtension != 'undefined') OHIExtension.renderOptions(opts);
 
 		opt_name = 'enable_sign_ext';
 		ft = 'show_keyboard_layout();inputText_focus()"><label title="기호 확장 배열">기호 확장</label>';
