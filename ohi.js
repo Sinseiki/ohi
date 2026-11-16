@@ -3121,7 +3121,7 @@ function show_options() {
 		else opt.style.display = 'none';
 
 		opt_name = 'sunalae';
-		ft = 'if(window.OHIExtension) OHIExtension.onSunalaeToggle();show_options();inputText_focus()"><label title="두벌식 자판으로 홀소리 글쇠를 거듭 눌러 겹닿소리(된소리) 넣기">홀소리 되풀이 순아래 <a href="https://sites.google.com/site/tinyduckn/dubeolsig-sun-alae" target="_blank">ⓘ</a></label>';
+		ft = 'if(window.OHIExtension) OHIExtension.onSunalaeToggle();show_options();inputText_focus()"><label title="두벌식 자판으로 홀소리 글쇠를 거듭 눌러 겹닿소리(된소리) 넣기">거듭 순아래 <a href="https://sites.google.com/site/tinyduckn/dubeolsig-sun-alae" target="_blank">ⓘ</a></label>';
 		opt = add_option(opts, opt_name, ft);
 		if(!is_old_hangeul_input() && !is_phonemic_writing_input() && !is_galmadeuli_input() && type_name.substr(0,2)=='2-' && type_name.substr(0,5)!='2-sun') opt.style.display = 'block';
 		else opt.style.display = 'none';
@@ -3138,7 +3138,7 @@ function show_options() {
 		opt_name = 'enable_old_hangeul_input';
 		ft = 'ohiChange_enable_old_hangeul_input();ohiStart();inputText_focus()"><label title="옛한글 넣기">옛한글</label>';
 		opt = add_option(opts, opt_name, ft);
-		if(typeof current_layout_info.old_hangeul_layout_type_name != 'undefined' && !(Ko_type.substr(0,2)=='2-' && option.sunalae) && !(typeof OHIExtension != 'undefined' && OHIExtension.isEnabled())) opt.style.display = 'block';
+		if(typeof current_layout_info.old_hangeul_layout_type_name != 'undefined' && !(Ko_type.substr(0,2)=='2-' && option.sunalae) && !(typeof OHIExtension != 'undefined' && (OHIExtension.isEnabled() || OHIExtension.isPartialEnabled()))) opt.style.display = 'block';
 		else opt.style.display = 'none';
 
 		opt_name = 'enable_Sin3_diphthong_key';
@@ -3686,7 +3686,7 @@ function show_keyboard_layout_info() {
 			if(type_name.substr(0,1)=='2') beol = '2';
 			else if(type_name.substr(0,1)=='4') beol = '4';
 
-			name = '<strong>[한글 ' + beol + '벌식' + kbd + (is_galmadeuli_input() ? ': 갈마들이' : '') + (is_moachigi_input() ? ': 모아치기' : '') + ']</strong> ';
+			name = '<strong>[한글 ' + beol + '벌식' + kbd + (is_galmadeuli_input() ? ': 갈마들이' : '') + (is_moachigi_input() ? ': 모아치기' : typeof OHIExtension != 'undefined' && OHIExtension.isPartialEnabled() ? ': 나눠치기' : '') + ']</strong> ';
 
 			var full_name = typeof current_layout_info.full_name != undefined ? current_layout_info.full_name : '';
 			if(is_old_hangeul_input()) {
@@ -3856,6 +3856,7 @@ function find_sublayout(layout_info) {
 
 function ohiChange(KE, type_name) {
 	var f=document.getElementById('inputText');
+	if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord(f);
 	inputText_focus();
 	
 	if(NFD_stack.phoneme.length && f) complete_hangeul_syllable(f);
@@ -4064,6 +4065,7 @@ function ohiKeypress(e) {
 			key_pressed=1;
 
 			if(is_moachigi_input()) pressed_key_accumulation(f,e,key);
+			else if(typeof OHIExtension != 'undefined' && OHIExtension.tryPartialKeypress(f,e,key)) {}
 			else {
 				if((document.selection && document.selection.createRange().text.length!=1) || (f.selectionEnd+1 && f.selectionEnd-f.selectionStart!=1))
 					ohiInsert(f,0,0);
@@ -4091,6 +4093,12 @@ function ohiKeydown(e) {
 	var KE = ohi_KE;
 
 	if(f.type=='text' && n=='INPUT' || n=='TEXTAREA') {
+		// 나눠치기로 모아 둔 글쇠를 특수 글쇠 처리보다 먼저 입력합니다.
+		if(typeof OHIExtension != 'undefined' && OHIExtension.isPartialEnabled() &&
+		   (e.keyCode==8 || e.keyCode==9 || e.keyCode==13 || e.keyCode==17 || e.keyCode==18 || e.keyCode==32 ||
+		    e.keyCode==91 || e.keyCode==93 || e.keyCode==27 || e.keyCode>=35 && e.keyCode<=40 ||
+		    e.keyCode==45 || e.keyCode==46)) OHIExtension.flushPartialChord(f,e);
+
 		if(e.keyCode>=96 && e.keyCode<=111) { // 오른쪽 숫자판(키패드) 글쇠일 때
 			onkeypress_skip=1;
 			esc_ext_state();
@@ -4184,7 +4192,7 @@ function ohiKeydown(e) {
 */
 
 		if(e.keyCode==16) { // shift
-			if(KE=='Ko' && Ko_type=='2-Gaon26KM') {
+			if(KE=='Ko' && Ko_type=='2-Gaon26KM' && !(typeof OHIExtension != 'undefined' && OHIExtension.isPartialEnabled())) {
 				pressed_key_accumulation(f,e,key);
 				tableKey_press(e.keyCode);
 			}
@@ -4217,6 +4225,7 @@ function ohiKeyup(e) {
 			pressing_keys=0;
 		}
 	}
+	else if(typeof OHIExtension != 'undefined' && OHIExtension.tryPartialKeyup(f,e)) {}
 	else if(KE=='Ko' && Ko_type=='2-Gaon26KM') {
 		if(pressing_keys && !--pressing_keys) {
 			// 윗글쇠(shift)가 눌렸으면 한글 조합을 끊음
@@ -4368,7 +4377,7 @@ function tableKey_press(key) {
 		if(j==41 || j==52) continue;
 		key_td = document.getElementById('key'+j);
 		key_td.className = key_td.className.replace(/ clicked| pressed/,'');
-		if(key==dkey[j] || key==ukey[j] || (layout_name.substr(0,3)=='3m-' && !option.force_normal_typing && (pressed_keys.indexOf(dkey[j])>=0 || pressed_keys.indexOf(ukey[j])>=0))) {
+		if(key==dkey[j] || key==ukey[j] || ((layout_name.substr(0,3)=='3m-' && !option.force_normal_typing || typeof OHIExtension != 'undefined' && OHIExtension.isPartialEnabled()) && (pressed_keys.indexOf(dkey[j])>=0 || pressed_keys.indexOf(ukey[j])>=0))) {
 			key_td.className += ' pressed';
 		}
 
