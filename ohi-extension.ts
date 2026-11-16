@@ -355,14 +355,6 @@ namespace OHIExtension {
             const vowel = ohi_ga[unicode_modern_ga.indexOf(lower)] - 35;
             // 겹홀소리를 만들 수 있으면 OHI의 기존 홀소리 조합을 먼저 적용합니다.
             if (ohiDoubleJamo(1, ohiQ[3], vowel)) return false;
-
-            // 두줄이의 ㅣ+ㅡ → ㅢ는 OHI의 기본 조합과 반대 순서입니다.
-            if (type === '2-Dujule' && ohiQ[3] === ohi_ga[ohi_ga.length - 1] - 35 &&
-                lower === 0x1173) {
-                ohiQ[4] = -1;
-                ohiInsert(f, 0, ohiQ);
-                return true;
-            }
         }
 
         // 윗글쇠의 유니코드 받침을 OHI 내부 코드로 바꿉니다.
