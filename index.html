@@ -3,6 +3,8 @@
 <head>
 	<meta http-equiv="content-type" content="text/html; charset=UTF-8" />
 	<!-- <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no"> -->
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
 	<title>온라인 한글 입력기 (Online HanGeul IME)</title>
 	<meta name="Description" content="한글 입력기가 깔리지 않은 곳에서도 한글 자판을 쓸 수 있는 웹 입력기 | On-screen web IME for Korean HanGeul keyboard layouts" />
 	<meta name="Keywords" content="HanGeul, Hangul, Korean, IME, Input Method, keyboard layout, 한글 자판, 영문 자판, 세벌식 자판, 두벌식 자판, 옛한글 자판, 타자기, QWERTY, Dvorak, Colemak, Workman, QWERTZ, AZERTY" />
@@ -81,11 +83,22 @@
 				parentNode.appendChild(childNode);
 				return childNode;
 		}
+
+		// 600px 너비를 기준으로 화면이 좁을 때 전체 입력기를 줄입니다.
+		function resizeOhi() {
+			const content = document.getElementById('content');
+			if (!content) return;
+			const viewportWidth = document.documentElement.clientWidth;
+			const scale = Math.min(1, viewportWidth / 600);
+			content.style.zoom = scale;
+		}
+		window.addEventListener('resize', resizeOhi);
+		window.addEventListener('DOMContentLoaded', resizeOhi);
 	//-->
 	</script>
 
 	<style>
-		body { margin: 8pt 0; overflow:scroll; }
+		body { margin: 8pt 0; overflow-y: scroll; overflow-x: hidden; }
 		body, input, textarea {	font-family:'segoe ui',tahoma,'맑은 고딕','Malgun Gothic','함초롬돋움','함초롬돋움 LVT','HCR Dotum LVT','Un Jamo Batang Ex','은 자모 바탕 확장';}
 		span.emph { color:black; }
 		div.title { color:tan; font-weight:bold; font-size:18pt; font-family:NanumGothic,나눔고딕;line-height:14pt; padding-bottom:6pt; }
