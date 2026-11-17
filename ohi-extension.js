@@ -510,8 +510,7 @@ var OHIExtension;
     OHIExtension.flushPartialChord = flushPartialChord;
     /** 최신 브라우저에서는 단축키와 나눠치기 글쇠를 keydown에서 먼저 처리합니다. */
     function tryKeydown(f, e) {
-        var _a, _b;
-        if (e.isComposing || e.keyCode === 229 || e.metaKey || ((_a = e.getModifierState) === null || _a === void 0 ? void 0 : _a.call(e, 'AltGraph')))
+        if (e.isComposing || e.keyCode === 229 || e.metaKey || e.getModifierState?.('AltGraph'))
             return false;
         // keypress가 생기지 않는 단축키도 keydown에서 처리합니다.
         // 오래 누른 단축키가 여러 번 실행되지 않도록 되풀이 이벤트는 소비만 합니다.
@@ -530,13 +529,36 @@ var OHIExtension;
             return true;
         }
         if (e.altKey && !e.ctrlKey && !e.shiftKey) {
-            const digit = ((_b = /^Digit([123])$/.exec(e.code)) === null || _b === void 0 ? void 0 : _b[1]) || (/^[123]$/.test(e.key) ? e.key : '');
+            const digit = /^Digit([123])$/.exec(e.code)?.[1] || (/^[123]$/.test(e.key) ? e.key : '');
             if (digit) {
-                flushPartialChord();
-                if (!e.repeat)
-                    ohiChange_between_same_type(['', 'En', 'K2', 'K3'][Number(digit)]);
-                tableKey_press(48 + Number(digit));
-                return true;
+                if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+                    const digit = /^Digit([123])$/.exec(e.code)?.[1] || (/^[123]$/.test(e.key) ? e.key : '');
+                    if (digit) {
+                        flushPartialChord();
+                        if (!e.repeat) {
+                            if (digit === '1') {
+                                if (ohi_KE === 'Ko')
+                                    ohiChange('En', 'QWERTY');
+                                else
+                                    ohiChange_between_same_type('En');
+                            }
+                            else if (digit === '2') {
+                                if (ohi_KE === 'En')
+                                    ohiChange('Ko', '2-KSX5002');
+                                else
+                                    ohiChange_between_same_type('K2');
+                            }
+                            else if (digit === '3') {
+                                if (ohi_KE === 'En')
+                                    ohiChange('Ko', 'Sin3-P2');
+                                else
+                                    ohiChange_between_same_type('K3');
+                            }
+                        }
+                        tableKey_press(48 + Number(digit));
+                        return true;
+                    }
+                }
             }
         }
         // 두벌식 나눠치기 이외의 한글 입력과 세모이 모아치기는 기존 keypress를 유지합니다.
