@@ -41,6 +41,7 @@ declare var ohi_ga: number[];
 declare function ohiDoubleJamo(kind: number, first: number, second: number): number;
 declare function find_layout_info(language: string, type: string): { layout: number[] } | false;
 declare function find_current_layout(): number[];
+declare function ohiChange(KE: string, type_name: string): void;
 declare function is_old_hangeul_input(): boolean;
 declare function is_phonemic_writing_input(): boolean;
 declare function ohiInsert(f: HTMLInputElement | HTMLTextAreaElement, m: any, q: number[] | number): void;
@@ -581,10 +582,29 @@ namespace OHIExtension {
         if (e.altKey && !e.ctrlKey && !e.shiftKey) {
             const digit = /^Digit([123])$/.exec(e.code)?.[1] || (/^[123]$/.test(e.key) ? e.key : '');
             if (digit) {
-                flushPartialChord();
-                if (!e.repeat) ohiChange_between_same_type(['', 'En', 'K2', 'K3'][Number(digit)]);
-                tableKey_press(48 + Number(digit));
-                return true;
+                if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+                    const digit = /^Digit([123])$/.exec(e.code)?.[1] || (/^[123]$/.test(e.key) ? e.key : '');
+
+                    if (digit) {
+                        flushPartialChord();
+
+                        if (!e.repeat) {
+                            if (digit === '1') {
+                                if (ohi_KE === 'Ko') ohiChange('En', 'QWERTY');
+                                else ohiChange_between_same_type('En');
+                            } else if (digit === '2') {
+                                if (ohi_KE === 'En') ohiChange('Ko', '2-KSX5002');
+                                else ohiChange_between_same_type('K2');
+                            } else if (digit === '3') {
+                                if (ohi_KE === 'En') ohiChange('Ko', '3-90');
+                                else ohiChange_between_same_type('K3');
+                            }
+                        }
+
+                        tableKey_press(48 + Number(digit));
+                        return true;
+                    }
+                }
             }
         }
 
