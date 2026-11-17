@@ -3887,7 +3887,7 @@ function ohiChange(KE, type_name) {
 function ohiChange_between_same_type(type) {	// 같은 한·영 종류의 배열 바꾸기 (Ko는 주요 배열만 간추림)
 	var i,j=-1;
 	var En_type_array = ['QWERTY','Dvorak','Colemak','Workman'];
-	var Ko_type_array = ['2-KSX5002','2-KPS9256','2-Dujule','Sin3-P2','Sin3-Cham','3m-Semoe','3-P3'];
+	var Ko_type_array = ['2-KSX5002','2-KPS9256','2-Dujule','3-90','3-91','Sin3-P2','Sin3-Cham','3m-Semoe','3-P3'];
 
 	if(type=='En') {
 		for(i=0;i<En_type_array.length;++i)
