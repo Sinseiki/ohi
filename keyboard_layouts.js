@@ -47,7 +47,7 @@ keyboard_layouts.push({KE: 'Ko', type_name: '2-KSX5002-y', full_name: '두벌식
 
 keyboard_layouts.push({KE: 'Ko', type_name: '2-KPS9256', full_name: '조선 국규 (KPS 9256)', hangeul_combination_table: K2_hangeul_combination_table, layout: K2_KPS9256_layout});
 
-keyboard_layouts.push({KE: 'Ko', type_name: '2-Dujule', full_name: '두줄이 (두벌식 줄맞춤 e)', layout: K2_Dujule_layout, link: 'https://blog.naver.com/eekdland/224252538464'});
+keyboard_layouts.push({KE: 'Ko', type_name: '2-Dujule', full_name: '두줄이 (두벌식 줄맞춤 e)', layout: K2_Dujule_layout, hangeul_combination_table: K2_hangeul_combination_table, link: 'https://blog.naver.com/eekdland/224252538464'});
 
 keyboard_layouts.push({KE: 'Ko', type_name: '3-90', full_name: '3-90 (한글 문화원, IBM 세벌식)', layout: K3_90_layout, old_hangeul_layout_type_name: '3-93-y', link: ''});
 keyboard_layouts.push({KE: 'Ko', type_name: '3-93-y', full_name: '3-93 옛한글 (3-90 응용)', layout: K3_93y_layout, link: 'http://asadal.busan.ac.kr/~gimgs0/hangeul/kbd/'});
