@@ -8,7 +8,7 @@
  * ohi.js에서는 일반 두벌식 입력과 글쇠 이벤트를 연결하는 진입점만 정해진 곳에서 부릅니다.
  * OHI의 기존 함수를 덮어쓰지는 않습니다.
  *
- * 나눠치기는 OHI의 눌림·해제 상태를 재사용해 별도의 입력 순서 정정으로 처리합니다.
+ * 부분 모아치기(초중성 모아치기는) OHI의 눌림·해제 상태를 재사용해 별도의 입력 순서 정정으로 처리합니다.
  * 대체 시프트는 한글 조합 중에 앞에 친 글자를 윗글쇠로 바꾸며, 기존 Shift의 동작을 바꾸지 않습니다.
  * 쓰이는 범위: 요즘 한글 모아쓰기.
  * 옛한글·첫가끝 강제 입력·풀어쓰기는 기존 OHI의 처리 방식을 그대로 사용합니다.
@@ -346,7 +346,7 @@ var OHIExtension;
             key.innerHTML = '<span style="background:black;color:#fff;font-size:1em;">⇧</span>';
     }
     OHIExtension.renderAlternateShiftKey = renderAlternateShiftKey;
-    // 두벌식 자판 나눠치기는 순아래 확장과 따로 켜거나 끌 수 있습니다.
+    // 두벌식 자판 부분 모아치기는 순아래 확장과 따로 켜거나 끌 수 있습니다.
     // 세모이를 비롯한 세벌식 모아치기 자판은 여기서 처리하지 않습니다.
     const partialTypes = ['2-KSX5002', '2-KPS9256', '2-Dujule', '2-Gaon26KM'];
     let partialEnabled = false;
@@ -370,7 +370,7 @@ var OHIExtension;
         };
         return String(e.type === 'keypress' ? shifted[upper] || upper : upper);
     }
-    // 입력창이나 브라우저에서 포커스가 사라지면 미완성 나눠치기를 원래 입력창에 확정합니다.
+    // 입력창이나 브라우저에서 포커스가 사라지면 미완성 부분 모아치기를 원래 입력창에 확정합니다.
     document.addEventListener('focusout', e => {
         if (e.target === partialTarget)
             flushPartialChord();
@@ -381,13 +381,13 @@ var OHIExtension;
             flushPartialChord();
     }, true);
     window.addEventListener('blur', () => flushPartialChord());
-    /** 요즘 한글 두벌식 자판에서만 이 나눠치기 기능을 쓸 수 있습니다. */
+    /** 요즘 한글 두벌식 자판에서만 이 부분 모아치기 기능을 쓸 수 있습니다. */
     function isPartialEnabled() {
         return partialEnabled && ohi_KE === 'Ko' && partialTypes.indexOf(Ko_type) >= 0 &&
             optionAvailable() && !option.turn_off_OHI;
     }
     OHIExtension.isPartialEnabled = isPartialEnabled;
-    /** 두벌식 일반 입력과 나눠치기를 전환합니다. */
+    /** 두벌식 일반 입력과 부분 모아치기를 전환합니다. */
     function setPartialEnabled(enabled) {
         flushPartialChord();
         repeatingPartialKey = null;
@@ -405,7 +405,7 @@ var OHIExtension;
             opts.insertAdjacentHTML('beforeend', `
                 <div class="option" id="option_ohi_partial_moachigi">
                     <input name="ohi_partial_moachigi" class="checkbox" type="checkbox" id="ohi_partial_checkbox">
-                    <label for="ohi_partial_checkbox" title="한 글자를 첫소리 + 가운뎃소리 / 끝소리로 두 번에 나눠치기">나눠치기 <a href="https://blog.naver.com/eekdland/224208062611" target="_blank" rel="noopener noreferrer">ⓘ</a></label>
+                    <label title="첫소리와 가운뎃소리를 함께 누르거나 겹받침을 한꺼번에 눌러 넣을 수 있는 모아치기">초중성 모아치기 <a href="https://blog.naver.com/eekdland/224208062611" target="_blank" rel="noopener noreferrer">ⓘ</a></label>
                 </div>
             `);
             wrap = document.getElementById(id);
@@ -471,7 +471,7 @@ var OHIExtension;
         const consonants = keys.filter(key => partialKind(key) === 'C');
         const vowels = keys.filter(key => partialKind(key) === 'V');
         // 홀소리가 있으면 CV 또는 CVV로 정리합니다.
-        // 홀소리만 두 개 있는 나눠치기도 겹홀소리의 순서로 바꿉니다.
+        // 홀소리만 두 개 있는 부분 모아치기도 겹홀소리의 순서로 바꿉니다.
         if (consonants.length === 1 && consonants.length + vowels.length === keys.length ||
             !consonants.length && vowels.length === keys.length) {
             const ordered = vowels.slice();
@@ -487,7 +487,7 @@ var OHIExtension;
         }
         return keys.slice();
     }
-    /** 나눠치기 입력을 실제 한글 조합 함수로 넘기고 눌림 상태를 비웁니다. */
+    /** 부분 모아치기 입력을 실제 한글 조합 함수로 넘기고 눌림 상태를 비웁니다. */
     function flushPartialChord(f, e) {
         // 입력을 시작한 곳을 우선합니다. 옵션을 누르거나 다른 입력창으로 옮겨도 대상이 바뀌지 않습니다.
         const target = partialTarget || f || document.getElementById('inputText');
@@ -508,7 +508,7 @@ var OHIExtension;
         }
     }
     OHIExtension.flushPartialChord = flushPartialChord;
-    /** 최신 브라우저에서는 단축키와 나눠치기 글쇠를 keydown에서 먼저 처리합니다. */
+    /** 최신 브라우저에서는 단축키와 부분 모아치기 글쇠를 keydown에서 먼저 처리합니다. */
     function tryKeydown(f, e) {
         if (e.isComposing || e.keyCode === 229 || e.metaKey || e.getModifierState?.('AltGraph'))
             return false;
@@ -561,7 +561,7 @@ var OHIExtension;
                 }
             }
         }
-        // 두벌식 나눠치기 이외의 한글 입력과 세모이 모아치기는 기존 keypress를 유지합니다.
+        // 두벌식 부분 모아치기 이외의 한글 입력과 세모이 모아치기는 기존 keypress를 유지합니다.
         if (!isPartialEnabled() || e.ctrlKey || e.altKey || typeof e.key !== 'string' || e.key.length !== 1)
             return false;
         const code = e.key.charCodeAt(0);
@@ -576,7 +576,7 @@ var OHIExtension;
         return true;
     }
     OHIExtension.tryKeydown = tryKeydown;
-    /** OHI의 일반 keypress 경로에서 나눠치기 글쇠를 모읍니다. */
+    /** OHI의 일반 keypress 경로에서 부분 모아치기 글쇠를 모읍니다. */
     function tryPartialKeypress(f, e, key) {
         if (!isPartialEnabled())
             return false;
