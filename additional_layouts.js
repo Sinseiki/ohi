@@ -21,7 +21,7 @@ additional_layouts.push({KE: 'Ko', type_name: '2-HGS_1952', full_name: '한당�
 additional_layouts.push({KE: 'Ko', type_name: '2-Jang_1953', full_name: '장봉선 풀어쓰기 전신 타자기 (1953) (체신부 통신용)', layout: K2_Jang_1953_teletypewriter_layout, link: 'https://pat.im/1025'});
 additional_layouts.push({KE: 'Ko', type_name: '2-Bag_Song_1968', full_name: '박영효·송계범 전신 타자기 자판 설계안 (1968)', layout: K2_Bag_Song_1968_layout, link: 'https://pat.im/1025'});
 additional_layouts.push({KE: 'Ko', type_name: '2-Gaon26KM', full_name: '가온한글26KM', layout: K2_Gaon_KSX5002_layout, link: 'http://cafe.daum.net/kbd-p/8OTK/10'});
-additional_layouts.push({KE: 'Ko', type_name: '2-Dujule', full_name: '두줄이 (두벌식 줄맞춤 e)', layout: K2_Dujule_layout, link: 'https://blog.naver.com/eekdland/224252538464'});
+additional_layouts.push({KE: 'Ko', type_name: '2-Dujule', full_name: '두줄이 (두벌식 줄맞춤 e)', layout: K2_Dujule_layout, hangeul_combination_table: K2_hangeul_combination_table, link: 'https://blog.naver.com/eekdland/224252538464'});
 
 additional_layouts.push({KE: 'Ko', type_name: '4t-1969', full_name: '1969 네벌식 타자기 표준 (과학기술처)', layout: K4_1969_Typewriter_layout,  hangeul_combination_table: K4_1969_Typewriter_combination_table, link: 'https://pat.im/965'});
 additional_layouts.push({KE: 'Ko', type_name: '3t-Oesol', full_name: '외솔 타자기 (1981, 최동식·김광성)', layout: K3_Oesol_Typewriter_layout, hangeul_combination_table: K3_Oesol_Typewriter_combination_table, link: 'https://pat.im/1026'});
