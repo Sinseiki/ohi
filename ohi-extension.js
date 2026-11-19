@@ -405,7 +405,7 @@ var OHIExtension;
             opts.insertAdjacentHTML('beforeend', `
                 <div class="option" id="option_ohi_partial_moachigi">
                     <input name="ohi_partial_moachigi" class="checkbox" type="checkbox" id="ohi_partial_checkbox">
-                    <label for="ohi_partial_checkbox" title="한 글자를 첫소리 + 가운뎃소리 / 끝소리로 두 번에 나눠치기">나눠치기 <a href="https://blog.naver.com/eekdland/224208062611" target="_blank" rel="noopener noreferrer">ⓘ</a></label>
+                    <label title="한 글자를 첫소리 + 가운뎃소리 / 끝소리로 두 번에 나눠치기">나눠치기 <a href="https://blog.naver.com/eekdland/224208062611" target="_blank" rel="noopener noreferrer">ⓘ</a></label>
                 </div>
             `);
             wrap = document.getElementById(id);
