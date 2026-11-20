@@ -202,13 +202,14 @@ namespace OHIExtension {
 
     /**
      * 기존 OHI의 '홀소리 거듭 순아래 조합'을 켤 때 호출됩니다.
-     * 홀소리 거듭 순아래와 부가기능 확장은 함께 사용하지 않도록 부가기능 확장의 체크 상태도 끕니다.
+     * 다른 자판에 남아 있는 부가기능 확장도 모두 꺼서 나중에 고른 순아래만 유지합니다.
      * 홀소리 거듭 순아래를 다시 꺼도 부가기능 확장이 저절로 켜지지는 않습니다.
      */
     export function onSunalaeToggle() {
         if (option.sunalae) {
-            const type = supportedType();
-            if (type) extendedEnabled[type] = false;
+            for (const type of ['2-KSX5002', '2-Dujule'] as SupportedLayout[]) {
+                extendedEnabled[type] = false;
+            }
             complete_hangeul_syllable();
             syncLayout();
         }
