@@ -4068,7 +4068,6 @@ function ohiKeypress(e) {
 			key_pressed=1;
 
 			if(is_moachigi_input()) pressed_key_accumulation(f,e,key);
-			else if(typeof OHIExtension != 'undefined' && OHIExtension.tryPartialKeypress(f,e,key)) {}
 			else {
 				if((document.selection && document.selection.createRange().text.length!=1) || (f.selectionEnd+1 && f.selectionEnd-f.selectionStart!=1))
 					ohiInsert(f,0,0);
