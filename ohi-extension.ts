@@ -55,14 +55,14 @@ declare function ohiChange_between_same_type(type: string): void;
 
 namespace OHIExtension {
     type SupportedLayout = '2-KSX5002' | '2-Dujule';
-    // 두 자판 모두 겹받침이 없는 바탕 배열을 그대로 남겨 둡니다.
-    // 기능을 켤 때만 원래 배열을 베낀 것에서 I/J/K/L 윗글쇠에 겹받침을 둡니다.
+    // 두 자판 모두 덧붙임 기능이 없는 바탕 배열을 그대로 남겨 둡니다.
+    // 기능을 켤 때만 원래 배열을 베낀 것에 겹받침과 윗글쇠 기호를 둡니다.
     // OHI가 조회하는 자판 정보(info)는 그대로 두고 layout 속성만 바꾸므로
     // 글자 입력과 화면 자판이 같은 배열을 사용합니다.
     type LayoutVariants = {
         info: { layout: number[] };
         disabled: number[]; // 덧붙인 기능을 껐을 때: 두 자판 모두 원래 배열
-        enabled: number[]; // 덧붙인 기능을 켰을 때: 원래 배열을 복사하고 겹받침을 더한 배열
+        enabled: number[]; // 덧붙인 기능을 켰을 때: 원래 배열을 복사하고 겹받침과 기호를 더한 배열
     };
     const variants: Partial<Record<SupportedLayout, LayoutVariants>> = {};
 
@@ -83,6 +83,22 @@ namespace OHIExtension {
                 enabled['J'.charCodeAt(0) - 33] = 0x11AD; // ㄶ
                 enabled['K'.charCodeAt(0) - 33] = 0x11B9; // ㅄ
                 enabled['L'.charCodeAt(0) - 33] = 0x11B0; // ㄺ
+                // 윗글쇠 기호를 더합니다.
+                enabled['A'.charCodeAt(0) - 33] = 0x2194; // ↔
+                enabled['B'.charCodeAt(0) - 33] = 0x25BD; // ▽
+                enabled['C'.charCodeAt(0) - 33] = 0x2192; // →
+                enabled['D'.charCodeAt(0) - 33] = 0x2661; // ♡
+                enabled['F'.charCodeAt(0) - 33] = 0x25A1; // □
+                enabled['G'.charCodeAt(0) - 33] = 0x25CE; // ◎
+                enabled['H'.charCodeAt(0) - 33] = 0x203B; // ※
+                enabled['M'.charCodeAt(0) - 33] = 0x2026; // …
+                enabled['N'.charCodeAt(0) - 33] = 0xB7; // ·
+                enabled['S'.charCodeAt(0) - 33] = 0x2191; // ↑
+                enabled['U'.charCodeAt(0) - 33] = 0x25CB; // ○
+                enabled['V'.charCodeAt(0) - 33] = 0x25B3; // △
+                enabled['X'.charCodeAt(0) - 33] = 0x2193; // ↓
+                enabled['Y'.charCodeAt(0) - 33] = 0xD7; // ×
+                enabled['Z'.charCodeAt(0) - 33] = 0x2190; // ←
                 variants['2-KSX5002'] = { info, disabled: info.layout, enabled };
             }
         }
@@ -90,12 +106,29 @@ namespace OHIExtension {
         if (!variants['2-Dujule']) {
             const info = find_layout_info('Ko', '2-Dujule');
             if (info) {
-                // 기본 두줄이 배열에는 겹받침 윗글쇠가 없고 표준 두벌식과 마찬가지로 복사본에만 겹받침을 더합니다.
+                // 표준 두벌식과 마찬가지로 복사본에만 겹받침과 윗글쇠 기호를 더합니다.
                 const enabled = info.layout.slice();
                 enabled['I'.charCodeAt(0) - 33] = 0x11B9; // ㅄ
                 enabled['J'.charCodeAt(0) - 33] = 0x11AD; // ㄶ
                 enabled['K'.charCodeAt(0) - 33] = 0x11B0; // ㄺ
                 enabled['L'.charCodeAt(0) - 33] = 0x11A9; // ㄲ
+                // 윗글쇠 기호를 더합니다.
+                enabled['A'.charCodeAt(0) - 33] = 0x2194; // ↔
+                enabled['B'.charCodeAt(0) - 33] = 0x25BD; // ▽
+                enabled['C'.charCodeAt(0) - 33] = 0x2192; // →
+                enabled['D'.charCodeAt(0) - 33] = 0x2661; // ♡
+                enabled['G'.charCodeAt(0) - 33] = 0x25CE; // ◎
+                enabled['H'.charCodeAt(0) - 33] = 0x203B; // ※
+                enabled['O'.charCodeAt(0) - 33] = 0x2026; // …
+                enabled['P'.charCodeAt(0) - 33] = 0x3B; // ;
+                enabled['R'.charCodeAt(0) - 33] = 0x25A1; // □
+                enabled['S'.charCodeAt(0) - 33] = 0x2191; // ↑
+                enabled['T'.charCodeAt(0) - 33] = 0xB7; // ·
+                enabled['U'.charCodeAt(0) - 33] = 0x25CB; // ○
+                enabled['V'.charCodeAt(0) - 33] = 0x25B3; // △
+                enabled['X'.charCodeAt(0) - 33] = 0x2193; // ↓
+                enabled['Y'.charCodeAt(0) - 33] = 0xD7; // ×
+                enabled['Z'.charCodeAt(0) - 33] = 0x2190; // ←
                 variants['2-Dujule'] = { info, disabled: info.layout, enabled };
             }
         }
