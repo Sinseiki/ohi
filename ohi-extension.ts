@@ -1,6 +1,4 @@
 /**
- * OHI 추가 기능 - 1단계 만들기
- *
  * 표준 두벌식의 두겹이 기능과 두줄이의 겹받침 갈마들이를 쓸 수 있게 합니다.
  * 자판 배열을 읽는 OHI의 여러 함수가 같은 결과를 얻도록,
  * 자판 정보의 layout 속성이 가리키는 배열을 기능의 켜짐·꺼짐에 따라 바꿉니다.
@@ -8,11 +6,14 @@
  * ohi.js에서는 일반 두벌식 입력과 글쇠 이벤트를 연결하는 진입점만 정해진 곳에서 부릅니다.
  * OHI의 기존 함수를 덮어쓰지는 않습니다.
  *
- * 부분 모아치기(초중성 모아치기는) OHI의 눌림·해제 상태를 재사용해 별도의 입력 순서 정정으로 처리합니다.
+ * 부분 모아치기(초중성 모아치기)는 OHI의 눌림·해제 상태를 재사용해 별도의 입력 순서 정정으로 처리합니다.
  * 대체 시프트는 한글 조합 중에 앞에 친 글자를 윗글쇠로 바꾸며, 기존 Shift의 동작을 바꾸지 않습니다.
  * 쓰이는 범위: 요즘 한글 모아쓰기.
  * 옛한글·첫가끝 강제 입력·풀어쓰기는 기존 OHI의 처리 방식을 그대로 사용합니다.
  */
+
+type HTMLInputTarget = HTMLInputElement | HTMLTextAreaElement;
+type OHIKeyboardEvent = KeyboardEvent | 0;
 
 declare var Ko_type: string;
 declare var ohi_KE: string;
@@ -29,13 +30,9 @@ declare var prev_ohiRQ: number[];
 declare var NFD_stack: { phoneme: number[] };
 declare var pressed_keys: number[];
 declare var pressing_keys: number;
-declare var unicode_modern_cheos: number[];
-declare var unicode_cheos: number[];
-declare var unicode_cheos_to_ggeut: number[];
-declare function ohiHangeul2(f: HTMLInputElement | HTMLTextAreaElement, e: any, key: number): void;
-declare var unicode_modern_ga: number[];
-declare var unicode_modern_ggeut: number[];
+declare function ohiHangeul2(f: HTMLInputTarget, e: OHIKeyboardEvent, key: number): void;
 declare var compatibility_ggeut: number[];
+declare var ohi_cheos: number[];
 declare var ohi_ggeut: number[];
 declare var ohi_ga: number[];
 declare function ohiDoubleJamo(kind: number, first: number, second: number): number;
@@ -44,8 +41,8 @@ declare function find_current_layout(): number[];
 declare function ohiChange(KE: string, type_name: string): void;
 declare function is_old_hangeul_input(): boolean;
 declare function is_phonemic_writing_input(): boolean;
-declare function ohiInsert(f: HTMLInputElement | HTMLTextAreaElement, m: any, q: number[] | number): void;
-declare function complete_hangeul_syllable(f?: HTMLInputElement | HTMLTextAreaElement): void;
+declare function ohiInsert(f: HTMLInputTarget, m: any, q: number[] | number): void;
+declare function complete_hangeul_syllable(f?: HTMLInputTarget): void;
 declare function show_keyboard_layout(type?: any): any;
 declare function show_keyboard_layout_info(): void;
 declare function show_options(): void;
@@ -122,32 +119,118 @@ namespace OHIExtension {
     }
 
     /**
-     * 겹받침을 이루는 두 닿소리를 OHI의 기존 받침 조합 규칙에서 찾습니다.
-     *
-     * ohiDoubleJamo(2, 첫째, 둘째)는 받침 결합에 필요한 값을 돌려줍니다.
-     * 첫째 + 그 값이 만들려는 받침과 같으면 두 닿소리를 찾은 것입니다.
-     * 예: ㄶ에 짝이 되는 ㄴ·ㅎ의 내부 코드.
-     *
-     * 찾은 결과는 아래 보관함에 저장하여 같은 받침을 다시 입력할 때 조합 규칙을 반복해서 훑지 않습니다.
-     * 나늘 수 없으면 null을 저장합니다.
-     * ㄲ·ㅆ처럼 같은 닿소리가 겹친 경우는 한 번에 지우도록 나누지 않습니다.
+     * 요즘 한글 조합 자모의 유니코드 범위와 OHI 내부 코드 변환 규칙입니다.
+     * 127과 35는 유니코드 규칙이 아니라 OHI 본체의 코드표에서 쓰는 보정값입니다.
+     * 코드표는 호출할 때마다 조회하여 OHI 본체에서 배열을 교체해도 최신 값을 사용합니다.
      */
-    const finalPartsCache: Record<number, [number, number] | null> = {};
-    function findFinalParts(finalCode: number): [number, number] | null {
-        if (Object.prototype.hasOwnProperty.call(finalPartsCache, finalCode)) {
-            return finalPartsCache[finalCode];
+    const JAMO = {
+        initial: {
+            first: 0x1100,
+            last: 0x1112,
+            offset: 127,
+            getTable: () => ohi_cheos
+        },
+        vowel: {
+            first: 0x1161,
+            last: 0x1175,
+            offset: 35,
+            combineMode: 1,
+            getTable: () => ohi_ga
+        },
+        final: {
+            first: 0x11A8,
+            last: 0x11C2,
+            offset: 0,
+            combineMode: 2,
+            getTable: () => ohi_ggeut
         }
-        for (const first of ohi_ggeut) {
-            for (const second of ohi_ggeut) {
-                if (first === second) continue; // ㄲ·ㅆ 등 된소리는 한 번에 지웁니다.
-                const delta = ohiDoubleJamo(2, first, second);
-                if (delta > 0 && first + delta === finalCode) {
-                    return finalPartsCache[finalCode] = [first, second];
+    };
+    type JamoKind = keyof typeof JAMO;
+    type CombinableJamoKind = Exclude<JamoKind, 'initial'>;
+
+    /** 요즘 한글 조합 자모의 유니코드 범위인지 확인합니다. */
+    function isModern(kind: JamoKind, jamo: number) {
+        const { first, last } = JAMO[kind];
+        return Number.isInteger(jamo) && first <= jamo && jamo <= last;
+    }
+
+    /** 유니코드 조합 자모를 OHI 내부 코드로 바꿉니다. */
+    function toOhi(kind: JamoKind, jamo: number) {
+        const { first, offset, getTable } = JAMO[kind];
+        if (!isModern(kind, jamo)) {
+            throw new RangeError(`요즘 한글 ${kind} 자모가 아닙니다: ${jamo}`);
+        }
+
+        const code = getTable()[jamo - first];
+        if (code === undefined) {
+            throw new Error(`OHI ${kind} 코드표가 올바르지 않습니다.`);
+        }
+        return code - offset;
+    }
+
+    /** OHI 내부 코드를 유니코드 조합 자모로 바꿉니다. */
+    function toUnicode(kind: JamoKind, code: number) {
+        const { first, offset, getTable } = JAMO[kind];
+        const index = getTable().indexOf(code + offset);
+        return index < 0 ? null : first + index;
+    }
+
+    /**
+     * 가운뎃소리·끝소리의 결합 여부를 현재 OHI 조합 규칙에서 조회합니다.
+     * 자판별 사용자 정의 조합표도 OHI 본체의 규칙을 그대로 따릅니다.
+     */
+    function combineJamo(kind: CombinableJamoKind, first: number, second: number) {
+        if (!isModern(kind, first) || !isModern(kind, second)) return null;
+        const a = toOhi(kind, first);
+        const delta = ohiDoubleJamo(JAMO[kind].combineMode, a, toOhi(kind, second));
+        return delta > 0 ? toUnicode(kind, a + delta) : null;
+    }
+
+    /**
+     * 겹받침을 이루는 두 종성을 현재 OHI 조합 규칙에서 찾습니다.
+     * 자판별 조합표가 바뀔 수 있으므로 결과를 저장하지 않습니다.
+     * 같은 자모 둘(ㄲ·ㅆ)은 기존처럼 나누지 않습니다.
+     */
+    function findFinalParts(finalJamo: number): [number, number] | null {
+        if (!isModern('final', finalJamo)) return null;
+
+        for (let first = JAMO.final.first; first <= JAMO.final.last; first++) {
+            for (let second = JAMO.final.first; second <= JAMO.final.last; second++) {
+                if (first === second) continue;
+                if (combineJamo('final', first, second) === finalJamo) {
+                    return [first, second];
                 }
             }
         }
-        return finalPartsCache[finalCode] = null;
+        return null;
     }
+
+    // 대체 시프트로 바꿀 수 있는 자모를 유니코드로 나타냅니다.
+    const shiftedInitials = new Map([
+        [0x1100, 0x1101], // ㄱ → ㄲ
+        [0x1103, 0x1104], // ㄷ → ㄸ
+        [0x1107, 0x1108], // ㅂ → ㅃ
+        [0x1109, 0x110A], // ㅅ → ㅆ (두겹이만)
+        [0x110C, 0x110D]  // ㅈ → ㅉ
+    ]);
+    const shiftedVowels = new Map([
+        [0x1162, 0x1164], // ㅐ → ㅒ
+        [0x1166, 0x1168]  // ㅔ → ㅖ
+    ]);
+    const shiftedFinals = new Map([
+        [0x11A8, 0x11A9], // ㄱ → ㄲ
+        [0x11BA, 0x11BB]  // ㅅ → ㅆ (두겹이만)
+    ]);
+    const finalToShiftedInitial = new Map([
+        [0x11AE, 0x1104], // ㄷ → ㄸ
+        [0x11B8, 0x1108], // ㅂ → ㅃ
+        [0x11BD, 0x110D]  // ㅈ → ㅉ
+    ]);
+    const initialToFinal = [
+        0x11A8, 0x11A9, 0x11AB, 0x11AE, 0, 0x11AF, 0x11B7,
+        0x11B8, 0, 0x11BA, 0x11BB, 0x11BC, 0x11BD, 0,
+        0x11BE, 0x11BF, 0x11C0, 0x11C1, 0x11C2
+    ];
 
     // 체크 상태는 자판마다 따로 기억합니다. 체크 상태가 참이더라도
     // 옛한글이나 순아래 입력 중에는 isEnabled()가 거짓을 돌려줄 수 있습니다.
@@ -241,6 +324,7 @@ namespace OHIExtension {
             const input = document.getElementById('ohi_dugyeob_checkbox') as HTMLInputElement;
             input.addEventListener('change', () => setEnabled(input.checked));
         }
+        if(!wrap) return;
         wrap.style.display = type && optionAvailable() ? 'block' : 'none';
 
         const cb = document.getElementById('ohi_dugyeob_checkbox') as HTMLInputElement;
@@ -249,7 +333,7 @@ namespace OHIExtension {
         cb.checked = !!type && !!extendedEnabled[type];
 
         if (type === '2-Dujule') {
-            label.title = '두줄이 자판으로 빗금 글쇠를 다음에 눌러 겹닿소리(된소리) 넣고 홀소리에 갈마들이 기능을 넣기';
+            label.title = '두줄이 자판으로 빗금 글쇠를 다음에 눌러 겹닿소리(된소리)를 넣고 홀소리에 갈마들이 기능 넣기';
             label.innerHTML = '부가기능 순아래 <a href="https://blog.naver.com/eekdland/224288483666" target="_blank" rel="noopener noreferrer">ⓘ</a>';
         } else {
             label.title = '두겹이 자판으로 쌍반점 글쇠를 다음에 눌러 겹닿소리(된소리) 넣기';
@@ -258,13 +342,17 @@ namespace OHIExtension {
         renderPartialOptions(opts);
     }
 
-    /** OHI 본체에서 부르는 유일한 글쇠 확장 진입점입니다. */
-    export function tryExtendedInput(f: HTMLInputElement | HTMLTextAreaElement, e: any, key: number) {
+   /**
+    * OHI 본체의 두벌식 조합 함수에서 부르는 확장 진입점입니다.
+    * - true: 확장에서 입력을 마쳤으므로 본체의 일반 두벌식 처리를 건너뜁니다.
+    * - false: 확장에서 처리하지 않았으므로 본체가 평소대로 글쇠를 처리합니다.
+    */
+    export function tryExtendedInput(f: HTMLInputTarget, e: OHIKeyboardEvent, key: number) {
         return tryAlternateShift(f, e, key) || tryDoubleFinal(f, e, key);
     }
 
     /**
-     * 날개셋 대체 시프트: 두겹이는 ;, 두줄이는 / 글쇠로 바로 앞 낱자를 바꿉니다.
+     * 대체 시프트: 두겹이는 ;, 두줄이는 / 글쇠로 바로 앞 낱자를 바꿉니다.
      * 다음 글쇠에 쓰이는 Shift 잠금이 아니라 현재 ohiQ의 낱자를 바꿉니다.
      * 확장 상태 외에는 끼어들지 않으며, 변환할 낱자가 없으면 원래 부호로 입력합니다.
      *
@@ -276,7 +364,7 @@ namespace OHIExtension {
      *
      * 숫자는 OHI 내부 낱자 코드이며 자판 종류에 따른 글쇠 배치는 살펴보지 않습니다.
      */
-    function tryAlternateShift(f: HTMLInputElement | HTMLTextAreaElement, e: any, key: number) {
+    function tryAlternateShift(f: HTMLInputTarget, e: OHIKeyboardEvent, key: number) {
         if (!isEnabled() || NFD_stack.phoneme.length || (e && e.shiftKey)) return false;
         const type = supportedType();
         if (key !== (type === '2-KSX5002' ? 59 : 47)) return false;
@@ -284,20 +372,22 @@ namespace OHIExtension {
         // 첫소리·가운뎃소리·끝소리가 함께 있을 때에는 마지막 끝소리부터 판정합니다.
         // 겹받침과 이미 바뀐 된소리 받침에는 다시 적용하지 않습니다.
         if (ohiQ[6] && !ohiQ[7] && !ohiQ[8]) {
-            const final = ohiQ[6];
-            if (final === 1 || (type === '2-KSX5002' && final === 21)) {
+            const final = toUnicode('final', ohiQ[6]);
+            const shiftedFinal = final === null ? null : shiftedFinals.get(final);
+            if (shiftedFinal && (final !== 0x11BA || type === '2-KSX5002')) {
                 // ㄲ·ㅆ 받침은 다음 홀소리를 누를 때 첫소리로 온전히 이동해야 하므로
-                // OHI 내부 코드 하나로 보존합니다 (ㄲ=2, ㅆ=22).
-                ohiQ[6] = final + 1;
+                // OHI 내부 코드 하나로 보존합니다.
+                ohiQ[6] = toOhi('final', shiftedFinal);
                 ohiInsert(f, 0, ohiQ);
                 return true;
             }
-            if (final === 7 || final === 18 || final === 24) {
-                // ㄸ/ㅃ/ㅉ은 요즘 한글 끝소리가 될 수 없으므로 새 첫소리를 시작합니다.
+            const shiftedInitial = final === null ? null : finalToShiftedInitial.get(final);
+            if (shiftedInitial) {
+                // ㄸ/ㅃ/ㅉ은 종성이 될 수 없으므로 새 초성으로 시작합니다.
                 ohiQ[6] = 0;
                 ohiInsert(f, 0, ohiQ);
                 complete_hangeul_syllable(f);
-                ohiQ = [final + 1, 0, 0, 0, 0, 0, 0, 0, 0];
+                ohiQ = [toOhi('initial', shiftedInitial), 0, 0, 0, 0, 0, 0, 0, 0];
                 ohiInsert(f, 0, ohiQ);
                 return true;
             }
@@ -306,36 +396,50 @@ namespace OHIExtension {
         if (ohiQ[6]) return false;
 
         // 홀로 친 홀소리와 첫소리+홀소리를 같은 방법으로 다룹니다.
-        if (ohiQ[3] && !ohiQ[4] && !ohiQ[5] && (ohiQ[3] === 32 || ohiQ[3] === 36)) {
-            ohiQ[4] = 2; // ㅐ→ㅒ, ㅔ→ㅖ (현재 홀소리에 차이값 2 추가)
-            ohiInsert(f, 0, ohiQ);
-            return true;
+        if (ohiQ[3] && !ohiQ[4] && !ohiQ[5]) {
+            const vowel = toUnicode('vowel', ohiQ[3]);
+            const shiftedVowel = vowel === null ? null : shiftedVowels.get(vowel);
+            if (shiftedVowel && vowel !== null) {
+                // OHI의 추가 조합 자리는 완성된 자모가 아니라 첫 자모와의 차이값입니다.
+                ohiQ[4] = toOhi('vowel', shiftedVowel) - toOhi('vowel', vowel);
+                ohiInsert(f, 0, ohiQ);
+                return true;
+            }
         }
 
         if (ohiQ[0] && !ohiQ[1] && !ohiQ[2] && !ohiQ[3]) {
-            const initial = ohiQ[0];
-            if (initial === 1 || initial === 7 || initial === 18 || initial === 24 ||
-                (type === '2-KSX5002' && initial === 21)) {
-                ohiQ[1] = 1; // OHI에서는 된소리 첫소리를 기본 첫소리+1로 조합합니다.
+            const initial = toUnicode('initial', ohiQ[0]);
+            const shiftedInitial = initial === null ? null : shiftedInitials.get(initial);
+            if (shiftedInitial && initial !== null && (initial !== 0x1109 || type === '2-KSX5002')) {
+                ohiQ[1] = toOhi('initial', shiftedInitial) - toOhi('initial', initial);
                 ohiInsert(f, 0, ohiQ);
                 return true;
             }
         }
         return false;
     }
+
+    // 대체 시프트 글쇠를 두겹이와 두줄이 순아래에서 화상 자판에 나타냅니다.
+    export function renderAlternateShiftKey() {
+        if (!isEnabled() || ohi_KE !== 'Ko') return;
+
+        const id = supportedType() === '2-Dujule' ? 'dh51' : 'dh38';
+        const key = document.getElementById(id);
+
+        if (key) key.innerHTML = '<span style="background:black;color:#fff;font-size:1em;">⇧</span>';
+    }
+
     /**
      * 겹받침 갈마들이가 필요한 입력만 먼저 다룹니다.
      *
      * ohiHangeul2()에서 tryExtendedInput()을 거쳐 이 함수를 먼저 부릅니다.
-     * - true: 확장에서 입력을 끝냈으므로 OHI의 일반 두벌식 처리를 건너뜁니다.
-     * - false: 확장에서 처리하지 않았으므로 OHI가 평소대로 글쇠를 처리합니다.
      *
      * 아랫글쇠가 홀소리이고 윗글쇠가 끝소리인 자리만 해당합니다.
      * 첫소리·가운뎃소리가 있고 끝소리가 비어 있으면 아랫글쇠도 끝소리로 갈마들 수 있습니다.
      * 다만 기존 홀소리와 어울려 겹홀소리를 만들 수 있으면 홀소리를 먼저 씁니다.
      * 시프트를 누른 윗글쇠는 받침을 바로 고른 것으로 처리합니다.
      */
-    export function tryDoubleFinal(f: HTMLInputElement | HTMLTextAreaElement, _e: any, key: number): boolean {
+    export function tryDoubleFinal(f: HTMLInputTarget, _e: OHIKeyboardEvent, key: number): boolean {
         // 확장이 꺼졌거나 첫가끝 자모를 따로 쌓는 중이면 기존 OHI에 맡깁니다.
         if (!isEnabled() || NFD_stack.phoneme.length) return false;
         if (!((65 <= key && key <= 90) || (97 <= key && key <= 122))) return false;
@@ -349,7 +453,7 @@ namespace OHIExtension {
         const layout = find_current_layout();
         const lower = layout[lowerKey - 33];
         const upper = layout[upperKey - 33];
-        if (unicode_modern_ga.indexOf(lower) < 0 || unicode_modern_ggeut.indexOf(upper) < 0) return false;
+        if (!isModern('vowel', lower) || !isModern('final', upper)) return false;
 
         // ohiQ는 OHI가 조합 중인 음절을 기억하는 배열로서(0번: 첫소리, 3~5번: 가운뎃소리, 6~8번: 끝소리),
         // 첫소리·가운뎃소리가 있고 끝소리가 비어 있는 조건이어야 새 받침을 넣을 수 있습니다.
@@ -358,45 +462,33 @@ namespace OHIExtension {
             // 홀로 입력한 윗글쇠 받침은 음절에 붙일 수 없으므로 호환 낱자로 넣습니다.
             if (key !== upperKey) return false;
             complete_hangeul_syllable(f);
-            const compatIndex = unicode_modern_ggeut.indexOf(upper);
-            ohiInsert(f, 0, compatibility_ggeut[compatIndex]);
+            ohiInsert(f, 0, compatibility_ggeut[upper - JAMO.final.first]);
             return true;
         }
 
         // 시프트를 누르지 않았고 가운뎃소리가 아직 덧붙여지지 않은 상태라면,
         // 먼저 홀소리끼리 어울릴 수 있는지 살펴봅니다. 가능하면 OHI 기본 처리에 맡깁니다.
         if (key === lowerKey && !ohiQ[4] && !ohiQ[5]) {
-            const vowel = ohi_ga[unicode_modern_ga.indexOf(lower)] - 35;
+            const currentVowel = toUnicode('vowel', ohiQ[3]);
             // 겹홀소리를 만들 수 있으면 OHI의 기존 홀소리 조합을 먼저 적용합니다.
-            if (ohiDoubleJamo(1, ohiQ[3], vowel)) return false;
+            if (currentVowel !== null && combineJamo('vowel', currentVowel, lower) !== null) return false;
         }
 
         // 윗글쇠의 유니코드 받침을 OHI 내부 코드로 바꿉니다.
         // 겹받침은 내부 조합 상태에 이루는 닿소리 둘을 남겨 두어야
         // 지우기나 뒤따르는 홀소리 입력을 OHI가 처리할 수 있습니다.
-        const finalCode = ohi_ggeut[unicode_modern_ggeut.indexOf(upper)];
-        const parts = findFinalParts(finalCode);
-        ohiQ[6] = parts ? parts[0] : finalCode;
-        ohiQ[7] = parts ? parts[1] : 0;
-        // 화면에 넣을 조합값은 따로 복사합니다.
-        // ohiQ에는 겹받침을 이루는 닿소리의 내부 상태를 남기고, 화면용 배열에는 결합된 받침에 해당하는 값을 넣습니다.
-        const display = ohiQ.slice();
-        if (parts) display[7] = finalCode - parts[0];
-        ohiInsert(f, 0, display);
+        const parts = findFinalParts(upper);
+
+        ohiQ[6] = parts ? toOhi('final', parts[0]) : toOhi('final', upper);
+        ohiQ[7] = parts ? toOhi('final', upper) - toOhi('final', parts[0]) : 0;
+
+        ohiInsert(f, 0, ohiQ);
         // OHI가 다음 글쇠를 처리할 때 앞선 조합 상태를 살펴볼 수 있도록 남겨 둡니다.
         prev_ohiQ = ohiQ.slice();
         prev_ohiRQ = ohiRQ.slice();
+        // OHI는 글자를 조합한 뒤 둘째 받침의 실제 코드를 남겨 다음 홀소리의 첫소리로 씁니다.
+        if (parts) ohiQ[7] = toOhi('final', parts[1]);
         return true;
-    }
-
-    // 대체 시프트 글쇠를 두겹이와 두줄이 순아래에서 화상 자판에 나타냅니다.
-    export function renderAlternateShiftKey() {
-        if (!isEnabled() || ohi_KE !== 'Ko') return;
-
-        const id = supportedType() === '2-Dujule' ? 'dh51' : 'dh38';
-        const key = document.getElementById(id);
-
-        if (key) key.innerHTML = '<span style="background:black;color:#fff;font-size:1em;">⇧</span>';
     }
 
     // 두벌식 자판 부분 모아치기는 순아래 확장과 따로 켜거나 끌 수 있습니다.
@@ -404,25 +496,13 @@ namespace OHIExtension {
     const partialTypes = ['2-KSX5002', '2-KPS9256', '2-Dujule', '2-Gaon26KM'];
     let partialEnabled = false;
     let partialPending = false;
-    let partialTarget: HTMLInputElement | HTMLTextAreaElement | null = null;
+    let partialTarget: HTMLInputTarget | null = null;
     const partialHeldKeys = new Set<string>();
     let repeatingPartialKey: string | null = null;
 
-    /** 눌림·해제에서 같은 물리 글쇠를 알아볼 수 있게 글쇠 이름을 맞춥니다. */
-    function partialPhysicalKey(e: KeyboardEvent, key?: number) {
-        if (e.code && e.code !== 'Unidentified') return e.code;
-
-        // 오래된 브라우저에서는 keypress의 글자값과 keyup의 글쇠값이 다를 수 있습니다.
-        // 영문 대·소문자와 윗글쇠 기호를 같은 글쇠값으로 맞춥니다.
-        const raw = e.type === 'keypress' ? (e.which || e.keyCode || key || 0) : (e.keyCode || e.which || key || 0);
-        const upper = 97 <= raw && raw <= 122 ? raw - 32 : raw;
-        const shifted: Record<number, number> = {
-            33: 49, 64: 50, 35: 51, 36: 52, 37: 53, 94: 54, 38: 55, 42: 56, 40: 57, 41: 48,
-            45: 189, 95: 189, 61: 187, 43: 187, 91: 219, 123: 219, 93: 221, 125: 221,
-            92: 220, 124: 220, 59: 186, 58: 186, 39: 222, 34: 222, 44: 188, 60: 188,
-            46: 190, 62: 190, 47: 191, 63: 191, 96: 192, 126: 192
-        };
-        return String(e.type === 'keypress' ? shifted[upper] || upper : upper);
+    /** 눌림과 해제에서 같은 물리 글쇠를 알아봅니다. */
+    function partialPhysicalKey(e: KeyboardEvent) {
+        return e.code && e.code !== 'Unidentified' ? e.code : '';
     }
 
     // 입력창이나 브라우저에서 포커스가 사라지면 미완성 부분 모아치기를 원래 입력창에 확정합니다.
@@ -444,7 +524,6 @@ namespace OHIExtension {
     /** 두벌식 일반 입력과 부분 모아치기를 전환합니다. */
     export function setPartialEnabled(enabled: boolean) {
         flushPartialChord();
-        repeatingPartialKey = null;
         partialEnabled = enabled;
         show_options();
         show_keyboard_layout_info();
@@ -466,55 +545,45 @@ namespace OHIExtension {
             const checkbox = document.getElementById('ohi_partial_checkbox') as HTMLInputElement;
             checkbox.addEventListener('change', () => setPartialEnabled(checkbox.checked));
         }
-        wrap!.style.display = ohi_KE === 'Ko' && partialTypes.indexOf(Ko_type) >= 0 &&
-                              optionAvailable() ? 'block' : 'none';
+        if(!wrap) return;
+        wrap.style.display = ohi_KE === 'Ko' && partialTypes.indexOf(Ko_type) >= 0 && optionAvailable() ? 'block' : 'none';
         (document.getElementById('ohi_partial_checkbox') as HTMLInputElement).checked = partialEnabled;
     }
 
-    /** 글쇠에 들어간 요즘 한글 낱자의 닿소리·홀소리를 구별합니다. */
+    /** 글쇠에 들어간 요즘 한글 조합 자모를 유니코드 범위로 판별합니다. */
     function partialKind(key: number): 'C' | 'V' | 'F' | null {
-        const layout = find_current_layout();
-        const jamo = layout[key - 33];
-        if (typeof jamo !== 'number') return null;
-        if (unicode_modern_cheos.indexOf(jamo) >= 0) return 'C';
-        if (unicode_modern_ga.indexOf(jamo) >= 0) return 'V';
-        if (unicode_modern_ggeut.indexOf(jamo) >= 0) return 'F';
+        const jamo = find_current_layout()[key - 33];
+        if (isModern('initial', jamo)) return 'C';
+        if (isModern('vowel', jamo)) return 'V';
+        if (isModern('final', jamo)) return 'F';
         return null;
     }
 
     /** 두 홀소리가 결합하는 순서가 맞는지 살펴봅니다. */
     function canCombineVowels(first: number, second: number) {
         const layout = find_current_layout();
-        const firstIndex = unicode_modern_ga.indexOf(layout[first - 33]);
-        const secondIndex = unicode_modern_ga.indexOf(layout[second - 33]);
-        if (firstIndex < 0 || secondIndex < 0) return false;
+        const a = layout[first - 33];
+        const b = layout[second - 33];
+        if (!isModern('vowel', a) || !isModern('vowel', b)) return false;
 
-        const firstVowel = ohi_ga[firstIndex] - 35;
-        const secondVowel = ohi_ga[secondIndex] - 35;
         // 거듭 순아래·국규·가온한글26KM에서는 ㅑ·ㅕ 다음의 ㅣ도 겹홀소리로 묶습니다.
         // OHI 본체가 따로 처리하는 조합이므로 일반 겹홀소리 조합표보다 먼저 살펴봅니다.
-        if ((option.sunalae || Ko_type === '2-KPS9256' || Ko_type === '2-Gaon26KM' || Ko_type.substr(0, 5) === '2-sun') &&
-            (firstVowel === 33 || firstVowel === 37) && secondVowel === 51) return true;
+        if ((option.sunalae || Ko_type === '2-KPS9256' || Ko_type === '2-Gaon26KM' || Ko_type.startsWith('2-sun')) &&
+            (a === 0x1163 || a === 0x1167) && b === 0x1175) return true;
 
-        return ohiDoubleJamo(1, firstVowel, secondVowel) > 0;
+        return combineJamo('vowel', a, b) !== null;
     }
 
     /** 두 닿소리가 순서를 고쳤을 때 겹받침을 이루는지 살펴봅니다. */
     function canCombineFinals(first: number, second: number) {
         const layout = find_current_layout();
-        const firstJamo = layout[first - 33];
-        const secondJamo = layout[second - 33];
-        const firstIndex = unicode_cheos.indexOf(firstJamo);
-        const secondIndex = unicode_cheos.indexOf(secondJamo);
-        if (firstIndex < 0 || secondIndex < 0) return false;
+        const a = layout[first - 33];
+        const b = layout[second - 33];
+        if (!isModern('initial', a) || !isModern('initial', b)) return false;
 
-        const firstFinal = unicode_cheos_to_ggeut[firstIndex];
-        const secondFinal = unicode_cheos_to_ggeut[secondIndex];
-        const a = ohi_ggeut[unicode_modern_ggeut.indexOf(firstFinal)];
-        const b = ohi_ggeut[unicode_modern_ggeut.indexOf(secondFinal)];
-        if (a === undefined || b === undefined) return false;
-        const delta = ohiDoubleJamo(2, a, b);
-        return delta > 0 && ohi_ggeut.indexOf(a + delta) >= 0;
+        const firstFinal = initialToFinal[a - JAMO.initial.first];
+        const secondFinal = initialToFinal[b - JAMO.initial.first];
+        return combineJamo('final', firstFinal, secondFinal) !== null;
     }
 
     /** 겹쳐 누른 글쇠의 조합 순서를 정정합니다. 조합은 기존 OHI가 다룹니다. */
@@ -541,8 +610,16 @@ namespace OHIExtension {
         return keys.slice();
     }
 
+    /** 글을 넣을 자리가 바뀌었으면 본체의 일반 글쇠 처리와 같이 조합 상태를 비웁니다. */
+    function inputPartialKey(f: HTMLInputTarget, e: OHIKeyboardEvent, key: number) {
+        if (f.selectionStart !== null && f.selectionEnd !== null && f.selectionEnd - f.selectionStart !== 1) {
+            ohiInsert(f, 0, 0);
+        }
+        ohiHangeul2(f, e, key);
+    }
+
     /** 부분 모아치기 입력을 실제 한글 조합 함수로 넘기고 눌림 상태를 비웁니다. */
-    export function flushPartialChord(f?: HTMLInputElement | HTMLTextAreaElement, e?: KeyboardEvent) {
+    export function flushPartialChord(f?: HTMLInputTarget, e?: KeyboardEvent) {
         // 입력을 시작한 곳을 우선합니다. 옵션을 누르거나 다른 입력창으로 옮겨도 대상이 바뀌지 않습니다.
         const target = partialTarget || f || document.getElementById('inputText') as HTMLTextAreaElement;
         const keys = partialPending ? pressed_keys.slice() : [];
@@ -558,70 +635,76 @@ namespace OHIExtension {
 
         for (const key of reorderPartialKeys(keys)) {
             // 글쇠의 순서만 정정하며 실제 낱자 조합은 OHI의 두벌식 함수에 맡깁니다.
-            ohiHangeul2(target, e || {}, key);
+            inputPartialKey(target, e ?? 0, key);
         }
     }
 
     /** 최신 브라우저에서는 단축키와 부분 모아치기 글쇠를 keydown에서 먼저 처리합니다. */
-    export function tryKeydown(f: HTMLInputElement | HTMLTextAreaElement, e: KeyboardEvent) {
-        if (e.isComposing || e.keyCode === 229 || e.metaKey || e.getModifierState?.('AltGraph')) return false;
+    export function tryKeydown(f: HTMLInputTarget, e: KeyboardEvent) {
+        // 다른 입력기가 글자를 조합하고 있으면 끼어들지 않습니다.
+        if (e.isComposing || e.keyCode === 229) return false;
 
-        // keypress가 생기지 않는 단축키도 keydown에서 처리합니다.
+        // 운영체제 단축키나 AltGraph 입력에 앞서 모아 둔 글쇠를 입력합니다.
+        if (e.metaKey || e.getModifierState?.('AltGraph')) {
+            if (partialPending) flushPartialChord();
+            return false;
+        }
+
+        // 단축키는 글쇠를 누르는 시점에 처리합니다.
         // 오래 누른 단축키가 여러 번 실행되지 않도록 되풀이 이벤트는 소비만 합니다.
-        if (!e.altKey && e.ctrlKey && !e.shiftKey && (e.key === 'Enter' || e.keyCode === 13)) {
+        if (!e.altKey && e.ctrlKey && !e.shiftKey && e.key === 'Enter') {
             flushPartialChord();
             if (!e.repeat) ohiChange_KBD_type();
             tableKey_press(13);
             return true;
         }
-        if (!e.altKey && e.ctrlKey !== e.shiftKey && (e.key === ' ' || e.code === 'Space' || e.keyCode === 32)) {
+        if (!e.altKey && e.ctrlKey !== e.shiftKey && (e.key === ' ' || e.code === 'Space')) {
             flushPartialChord();
             if (!e.repeat) ohiChange_KE();
             tableKey_press(32);
             return true;
         }
         if (e.altKey && !e.ctrlKey && !e.shiftKey) {
-            const digit = /^Digit([123])$/.exec(e.code)?.[1] || (/^[123]$/.test(e.key) ? e.key : '');
-            if (digit) {
-                if (e.altKey && !e.ctrlKey && !e.shiftKey) {
-                    const digit = /^Digit([123])$/.exec(e.code)?.[1] || (/^[123]$/.test(e.key) ? e.key : '');
+            const digit = ['Digit1', 'Digit2', 'Digit3'].includes(e.code) ? e.code.slice(-1) : e.key;
 
-                    if (digit) {
-                        flushPartialChord();
-
-                        if (!e.repeat) {
-                            if (digit === '1') {
-                                if (ohi_KE === 'Ko') ohiChange('En', 'QWERTY');
-                                else ohiChange_between_same_type('En');
-                            } else if (digit === '2') {
-                                if (ohi_KE === 'En') ohiChange('Ko', '2-KSX5002');
-                                else ohiChange_between_same_type('K2');
-                            } else if (digit === '3') {
-                                if (ohi_KE === 'En') ohiChange('Ko', '3-90');
-                                else ohiChange_between_same_type('K3');
-                            }
-                        }
-
-                        tableKey_press(48 + Number(digit));
-                        return true;
+            if (['1', '2', '3'].includes(digit)) {
+                flushPartialChord();
+                if (!e.repeat) {
+                    if (digit === '1') {
+                        if (ohi_KE === 'Ko') ohiChange('En', 'QWERTY');
+                        else ohiChange_between_same_type('En');
+                    } else if (digit === '2') {
+                        if (ohi_KE === 'En') ohiChange('Ko', '2-KSX5002');
+                        else ohiChange_between_same_type('K2');
+                    } else if (digit === '3') {
+                        if (ohi_KE === 'En') ohiChange('Ko', '3-90');
+                        else ohiChange_between_same_type('K3');
                     }
                 }
+                tableKey_press(digit.charCodeAt(0));
+                return true;
             }
         }
 
-        // 두벌식 부분 모아치기 이외의 한글 입력과 세모이 모아치기는 기존 keypress를 유지합니다.
-        if (!isPartialEnabled() || e.ctrlKey || e.altKey || typeof e.key !== 'string' || e.key.length !== 1) return false;
-        const code = e.key.charCodeAt(0);
-        if (code < 33 || code > 126) return false;
-        const key = ohiKeyswap(e, code);
-        if (!partialKind(key)) return false;
-        if (!tryPartialKeypress(f, e, key)) return false;
-        tableKey_press(key);
-        return true;
+        // 두벌식 부분 모아치기만 이곳에서 처리하고, 나머지는 OHI 본체에 맡깁니다.
+        if (!isPartialEnabled()) return false;
+        if (!e.ctrlKey && !e.altKey && !e.shiftKey && typeof e.key === 'string' && e.key.length === 1) {
+            const code = e.key.charCodeAt(0);
+            if (33 <= code && code <= 126) {
+                const key = ohiKeyswap(e, code);
+                if (handlePartialKeydown(f, e, key)) {
+                    tableKey_press(key);
+                    return true;
+                }
+            }
+        }
+        // 이어진 일반 입력보다 먼저 모아 둔 글쇠를 확정합니다.
+        if (partialPending) flushPartialChord(f, e);
+        return false;
     }
 
-    /** OHI의 일반 keypress 경로에서 부분 모아치기 글쇠를 모읍니다. */
-    export function tryPartialKeypress(f: HTMLInputElement | HTMLTextAreaElement, e: KeyboardEvent, key: number) {
+    /** 두벌식 부분 모아치기에서 눌린 글쇠를 모읍니다. */
+    function handlePartialKeydown(f: HTMLInputTarget, e: KeyboardEvent, key: number) {
         if (!isPartialEnabled()) return false;
         if (partialTarget && partialTarget !== f) flushPartialChord();
         if (!partialKind(key)) {
@@ -630,16 +713,21 @@ namespace OHIExtension {
             return false;
         }
 
-        const physicalKey = partialPhysicalKey(e, key);
+        const physicalKey = partialPhysicalKey(e);
+        if (!physicalKey) {
+            // 물리 글쇠를 알 수 없으면 모아 둔 입력을 마치고 본체에 맡깁니다.
+            flushPartialChord();
+            return false;
+        }
         if (repeatingPartialKey === physicalKey) {
-            ohiHangeul2(f, e, key);
+            inputPartialKey(f, e, key);
             return true;
         }
         if (e.repeat || partialHeldKeys.has(physicalKey)) {
             // 글쇠를 길게 눌렀다면 앞서 모은 글쇠를 먼저 입력하고 반복 입력으로 전환합니다.
             flushPartialChord();
             repeatingPartialKey = physicalKey;
-            ohiHangeul2(f, e, key);
+            inputPartialKey(f, e, key);
             return true;
         }
 
@@ -653,9 +741,13 @@ namespace OHIExtension {
     }
 
     /** 실제로 모아 둔 글쇠를 놓았을 때만 눌림 수를 줄입니다. */
-    export function tryPartialKeyup(_f: HTMLInputElement | HTMLTextAreaElement, e: KeyboardEvent) {
+    export function tryPartialKeyup(_f: HTMLInputTarget, e: KeyboardEvent) {
         if (!isPartialEnabled()) return false;
         const physicalKey = partialPhysicalKey(e);
+        if (!physicalKey) {
+            flushPartialChord(undefined, e);
+            return true;
+        }
         if (repeatingPartialKey === physicalKey) {
             repeatingPartialKey = null;
             return true;
