@@ -1500,9 +1500,9 @@ function ohiHangeul3_moa(f,e) { // 모아치기 세벌식 자판 처리
 		backup_prev_cursor_position = -1;
 		chars = seek_moachigi_abbreviation(combination_table);
 
-		if(chars.length==1 && combination_table[i].chars[0]<0 && combination_table[i].chars[0]>=-3) {
+		if(chars.length==1 && chars[0]<0 && chars[0]>=-3) {
 		// 부호값이 -1 ~ -3이면 기호 확장 배열 상태로 들어감
-			sign_layout_input(f,e,combination_table[i].chars[0]);
+			sign_layout_input(f,e,chars[0]);
 			return;
 		}
 
@@ -1679,6 +1679,19 @@ function sign_layout_input(f,e,key) {
 			sign_ext_state=-key;
 			show_keyboard_layout();
 			return 0;
+		}
+		else if(Ko_type=='3m-Semoe' && option.force_normal_typing) {
+			// 세모이 이어치기에서 기호 확장 배열 고르기
+			if(key==74) { // J
+				complete_hangeul_syllable(f);
+				sign_ext_state=-1;
+				return 1;
+			}
+			if(sign_ext_state==-1 && (key==75 || key==76 || key==58)) { // K, L, :
+				sign_ext_state=key==75 ? 1 : key==76 ? 2 : 3;
+				show_keyboard_layout();
+				return 1;
+			}
 		}
 		esc_ext_state();
 		return 0;
