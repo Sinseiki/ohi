@@ -4225,8 +4225,13 @@ function ohiKeyup(e) {
 	var exceptional_keys = [32,13,8,16]; // 사이띄개(32), 줄바꾸개(13), 뒷걸음쇠(8), 윗글쇠(16)
 
 	if(onkeyup_skip || option.turn_off_OHI || (e.keyCode<47 && exceptional_keys.indexOf(e.keyCode)<0)) {}
-	else if(!option.force_normal_typing && KE=='Ko' && Ko_type.substr(0,3)=='3m-') {	
-		if(e.keyCode==16 || pressing_keys && !--pressing_keys) { // 윗글쇠(16)를 떼었거나 모든 글쇠를 뗌
+	else if(!option.force_normal_typing && KE=='Ko' && Ko_type.substr(0,3)=='3m-') {
+		// 모아치기에 쓰이지 않는 기능 글쇠와 오른쪽 숫자판은 글쇠 수에서 빼지 않음
+		var moa_key = exceptional_keys.indexOf(e.keyCode)>=0 || // 예외 글쇠일 때
+			(!(96<=e.keyCode && e.keyCode<=111) && // 오른쪽 숫자판 글쇠가 아닐 때
+				/^[!-~]$/.test(e.key)); // 일반 글쇠일 때 (ASCII 33~126)
+
+		if(e.keyCode==16 || moa_key && pressing_keys && !--pressing_keys) { // 윗글쇠(16)를 떼었거나 모든 글쇠를 뗌
 			while(pressed_keys.indexOf(16)>=0) pressed_keys.splice(pressed_keys.indexOf(16),1);
 			if(pressed_keys.length) ohiHangeul3_moa(f,e);
 			prev_pressed_keys = pressed_keys.slice();
