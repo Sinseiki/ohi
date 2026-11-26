@@ -3857,8 +3857,20 @@ function ohiChange(KE, type_name) {
 	var f=document.getElementById('inputText');
 	if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord(f);
 	inputText_focus();
-	
-	if(NFD_stack.phoneme.length && f) complete_hangeul_syllable(f);
+
+	// 자판을 바꾸기 전에 모아친 글쇠를 처리함
+	if(f && current_layout_info.type_name && is_moachigi_input()) {
+		while(pressed_keys.indexOf(16)>=0) pressed_keys.splice(pressed_keys.indexOf(16),1);
+		if(pressed_keys.length) ohiHangeul3_moa(f,0);
+	}
+
+	pressed_keys=[];
+	pressing_keys=0;
+	prev_pressed_keys=[];
+	prev_class=[];
+
+	// 한글 낱내자 조합을 끊음
+	if(f) complete_hangeul_syllable(f);
 
 	esc_ext_state();
 	var prev_layout_info = typeof current_layout_info != 'undefined' ? current_layout_info : null;
