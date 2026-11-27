@@ -37,7 +37,6 @@ declare function convert_into_unicode_hangeul_phoneme(c: number): number;
 declare function ohiDoubleJamo(kind: number, first: number, second: number): number;
 declare function find_layout_info(language: string, type: string): { layout: number[] } | false;
 declare function find_current_layout(): number[];
-declare function ohiChange(KE: string, type_name: string): void;
 declare function is_old_hangeul_input(): boolean;
 declare function is_phonemic_writing_input(): boolean;
 declare function ohiInsert(f: HTMLInputTarget, m: any, q: number[] | number): void;
@@ -48,9 +47,6 @@ declare function show_options(): void;
 declare function inputText_focus(): void;
 declare function ohiKeyswap(e: KeyboardEvent, key: number): number;
 declare function tableKey_press(key: number): void;
-declare function ohiChange_KBD_type(): void;
-declare function ohiChange_KE(): void;
-declare function ohiChange_between_same_type(type: string): void;
 
 namespace OHIExtension {
     type SupportedLayout = '2-KSX5002' | '2-Dujule';
@@ -669,7 +665,7 @@ namespace OHIExtension {
         }
     }
 
-    /** 최신 브라우저에서는 단축키와 나눠치기 글쇠를 keydown에서 먼저 처리합니다. */
+    /** 나눠치기 글쇠를 keydown에서 먼저 처리합니다. */
     export function tryKeydown(f: HTMLInputTarget, e: KeyboardEvent) {
         // 다른 입력기가 글자를 조합하고 있으면 끼어들지 않습니다.
         if (e.isComposing || e.keyCode === 229) return false;
@@ -678,42 +674,6 @@ namespace OHIExtension {
         if (e.metaKey || e.getModifierState?.('AltGraph')) {
             if (partialPending) flushPartialChord();
             return false;
-        }
-
-        // 단축키는 글쇠를 누르는 시점에 처리합니다.
-        // 오래 누른 단축키가 여러 번 실행되지 않도록 되풀이 이벤트는 소비만 합니다.
-        if (!e.altKey && e.ctrlKey && !e.shiftKey && e.key === 'Enter') {
-            flushPartialChord();
-            if (!e.repeat) ohiChange_KBD_type();
-            tableKey_press(13);
-            return true;
-        }
-        if (!e.altKey && e.ctrlKey !== e.shiftKey && (e.key === ' ' || e.code === 'Space')) {
-            flushPartialChord();
-            if (!e.repeat) ohiChange_KE();
-            tableKey_press(32);
-            return true;
-        }
-        if (e.altKey && !e.ctrlKey && !e.shiftKey) {
-            const digit = ['Digit1', 'Digit2', 'Digit3'].includes(e.code) ? e.code.slice(-1) : e.key;
-
-            if (['1', '2', '3'].includes(digit)) {
-                flushPartialChord();
-                if (!e.repeat) {
-                    if (digit === '1') {
-                        if (ohi_KE === 'Ko') ohiChange('En', 'QWERTY');
-                        else ohiChange_between_same_type('En');
-                    } else if (digit === '2') {
-                        if (ohi_KE === 'En') ohiChange('Ko', '2-KSX5002');
-                        else ohiChange_between_same_type('K2');
-                    } else if (digit === '3') {
-                        if (ohi_KE === 'En') ohiChange('Ko', 'Sin3-P2');
-                        else ohiChange_between_same_type('K3');
-                    }
-                }
-                tableKey_press(digit.charCodeAt(0));
-                return true;
-            }
         }
 
         // 두벌식 나눠치기만 이곳에서 처리하고, 나머지는 OHI 본체에 맡깁니다.

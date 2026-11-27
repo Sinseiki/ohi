@@ -4046,27 +4046,6 @@ function ohiKeypress(e) {
 			ohiInsert(f,0,key);
 			esc_ext_state();
 		}
-		else if((key==10 || key==13 || key==32) && (e.ctrlKey^e.shiftKey)) { // Toggle
-			if(e.preventDefault) e.preventDefault();
-			if((key==10 || key==13) && e.ctrlKey) ohiChange_KBD_type(); // 기준 자판 바꾸기
-			else if(key==32 && (e.ctrlKey || e.shiftKey)) ohiChange_KE();	// 한·영 상태 바꾸기
-			key_pressed=0;
-		}
-		else if(key==49 && e.altKey && !e.ctrlKey && !e.shiftKey) {	// 영문 배열 종류 바꾸기 (QWERTY/Dvorak/Colemak)
-			ohiChange_between_same_type('En');
-			if(e.preventDefault) e.preventDefault();
-			key_pressed=0;
-		}
-		else if(key==50 && e.altKey && !e.ctrlKey && !e.shiftKey) {	// 두벌식 배열 종류 바꾸기 (한국/조선 표준 자판)
-			ohiChange_between_same_type('K2');
-			if(e.preventDefault) e.preventDefault();
-			key_pressed=0;
-		}
-		else if(key==51 && e.altKey && !e.ctrlKey && !e.shiftKey) {	// 세벌식 배열 종류 바꾸기
-			ohiChange_between_same_type('K3');
-			if(e.preventDefault) e.preventDefault();
-			key_pressed=0;
-		}
 		else if(ohi_KE.substr(0,2)=='En' && key>32 && key<127 && e.keyCode<127 && !e.altKey && !e.ctrlKey) { // 영문 상태에서 일반 글쇠
 			if(e.preventDefault) e.preventDefault();
 			ohiRoman(f,e,key);
@@ -4104,7 +4083,41 @@ function ohiKeydown(e) {
 	var KE = ohi_KE;
 
 	if(f.type=='text' && n=='INPUT' || n=='TEXTAREA') {
-		// 나눠치기와 단축키는 확장 파일에서 먼저 처리합니다. 기존 keypress는 그 밖의 입력에 씁니다.
+		// 자판을 바꾸는 기능 글쇠는 누를 때 처리함
+		var shortcut=0;
+		if(!e.isComposing && e.keyCode!=229 && !e.metaKey && !(e.getModifierState && e.getModifierState('AltGraph'))) {
+			if(!e.altKey && e.ctrlKey && !e.shiftKey && e.key=='Enter') shortcut=13;
+			else if(!e.altKey && e.ctrlKey!=e.shiftKey && (e.key==' ' || e.code=='Space')) shortcut=32;
+			else if(e.altKey && !e.ctrlKey && !e.shiftKey) {
+				var digit=/^Digit[123]$/.test(e.code) ? e.code.substr(5) : e.key;
+				if(digit=='1' || digit=='2' || digit=='3') shortcut=digit.charCodeAt(0);
+			}
+		}
+		if(shortcut) {
+			if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord();
+			if(!e.repeat) {
+				if(shortcut==13) ohiChange_KBD_type(); // 기준 자판 바꾸기
+				else if(shortcut==32) ohiChange_KE(); // 한·영 상태 바꾸기
+				else if(shortcut==49) { // 영문 배열 종류 바꾸기
+					if(KE=='Ko') ohiChange('En','QWERTY');
+					else ohiChange_between_same_type('En');
+				}
+				else if(shortcut==50) { // 두벌식 배열 종류 바꾸기
+					if(KE=='En') ohiChange('Ko','2-KSX5002');
+					else ohiChange_between_same_type('K2');
+				}
+				else if(shortcut==51) { // 세벌식 배열 종류 바꾸기
+					if(KE=='En') ohiChange('Ko','Sin3-P2');
+					else ohiChange_between_same_type('K3');
+				}
+			}
+			tableKey_press(shortcut);
+			onkeypress_skip=1;
+			if(e.preventDefault) e.preventDefault();
+			return false;
+		}
+		// 나눠치기는 확장 파일에서 먼저 처리함
+
 		if(typeof OHIExtension != 'undefined' && OHIExtension.tryKeydown(f,e)) {
 			onkeypress_skip=1;
 			if(e.preventDefault) e.preventDefault();
