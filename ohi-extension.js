@@ -100,28 +100,25 @@ var OHIExtension;
     /**
      * 요즘 한글 조합 자모의 유니코드 범위와 OHI 내부 코드 변환 규칙입니다.
      * 127과 35는 유니코드 규칙이 아니라 OHI 본체의 코드표에서 쓰는 보정값입니다.
-     * 코드표는 호출할 때마다 조회하여 OHI 본체에서 배열을 교체해도 최신 값을 사용합니다.
+     * 코드표의 낱자 부호값과 ohiQ의 조합값 사이를 보정합니다.
      */
     const JAMO = {
         initial: {
             first: 0x1100,
             last: 0x1112,
-            offset: 127,
-            getTable: () => ohi_cheos
+            offset: 127
         },
         vowel: {
             first: 0x1161,
             last: 0x1175,
             offset: 35,
-            combineMode: 1,
-            getTable: () => ohi_ga
+            combineMode: 1
         },
         final: {
             first: 0x11A8,
             last: 0x11C2,
             offset: 0,
-            combineMode: 2,
-            getTable: () => ohi_ggeut
+            combineMode: 2
         }
     };
     /** 요즘 한글 조합 자모의 유니코드 범위인지 확인합니다. */
@@ -129,23 +126,24 @@ var OHIExtension;
         const { first, last } = JAMO[kind];
         return Number.isInteger(jamo) && first <= jamo && jamo <= last;
     }
-    /** 유니코드 조합 자모를 OHI 내부 코드로 바꿉니다. */
+    /** 유니코드 조합 자모를 OHI의 낱내자 조합값으로 바꿉니다. */
     function toOhi(kind, jamo) {
-        const { first, offset, getTable } = JAMO[kind];
+        const { offset } = JAMO[kind];
         if (!isModern(kind, jamo)) {
             throw new RangeError(`요즘 한글 ${kind} 자모가 아닙니다: ${jamo}`);
         }
-        const code = getTable()[jamo - first];
+        const code = convert_into_ohi_hangeul_phoneme(jamo);
         if (code === undefined) {
             throw new Error(`OHI ${kind} 코드표가 올바르지 않습니다.`);
         }
         return code - offset;
     }
-    /** OHI 내부 코드를 유니코드 조합 자모로 바꿉니다. */
+    /** OHI의 낱내자 조합값을 유니코드 조합 자모로 바꿉니다. */
     function toUnicode(kind, code) {
-        const { first, offset, getTable } = JAMO[kind];
-        const index = getTable().indexOf(code + offset);
-        return index < 0 ? null : first + index;
+        const stored = code + JAMO[kind].offset;
+        const jamo = convert_into_unicode_hangeul_phoneme(stored);
+        // 본체에서 바꾸지 못한 값은 그대로 돌려주므로 걸러 냅니다.
+        return jamo !== stored && isModern(kind, jamo) ? jamo : null;
     }
     /**
      * 가운뎃소리·끝소리의 결합 여부를 현재 OHI 조합 규칙에서 조회합니다.
