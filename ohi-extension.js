@@ -124,6 +124,7 @@ var OHIExtension;
     /** 요즘 한글 조합 자모의 유니코드 범위인지 확인합니다. */
     function isModern(kind, jamo) {
         const { first, last } = JAMO[kind];
+        // 정수인지 먼저 살피므로 뒤의 범위 비교에서는 숫자로 다룰 수 있습니다.
         return Number.isInteger(jamo) && first <= jamo && jamo <= last;
     }
     /** 유니코드 조합 자모를 OHI의 낱내자 조합값으로 바꿉니다. */

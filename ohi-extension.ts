@@ -14,6 +14,37 @@
 
 type HTMLInputTarget = HTMLInputElement | HTMLTextAreaElement;
 type OHIKeyboardEvent = KeyboardEvent | 0;
+type OHIInputEvent = OHIKeyboardEvent | MouseEvent;
+type OHIInsertMode = number | boolean | number[] | string;
+type OHICompositionState = number[] | 0;
+type OHIJamoKind = 0 | 1 | 2;
+type OHISwitch = number | boolean | string;
+type OHIKeyLayout = (number | number[])[];
+type OHIExtendedLayout = (number | number[] | number[][])[];
+type OHIChordCombination = { phonemes: number[]; char: number };
+type OHIPhonemeAbbreviation = { phonemes: number[]; chars: number[] };
+type OHIKeyAbbreviation = { keys: string[]; chars: number[]; prev_keys?: string[]; class?: string[]; prev_class?: string[] };
+type OHILayoutInfo = {
+    KE: string;
+    type_name: string;
+    full_name?: string;
+    layout: OHIKeyLayout;
+    sublayout?: number[];
+    capslock_layout?: OHIKeyLayout;
+    capslock_sublayout?: number[];
+    extended_hangeul_layout?: OHIExtendedLayout;
+    extended_sign_layout?: OHIExtendedLayout | null;
+    capslock_extended_sign_layout?: OHIExtendedLayout | null;
+    hangeul_combination_table?: number[][];
+    hangeul_convenience_combination_table?: number[][];
+    character_combination_table?: number[][];
+    moachigi_hangeul_combination_table?: OHIChordCombination[];
+    ieochigi_hangeul_abbreviation_table?: OHIPhonemeAbbreviation[];
+    moachigi_hangeul_abbreviation_table?: OHIPhonemeAbbreviation[];
+    moachigi_multikey_abbreviation_table?: OHIKeyAbbreviation[];
+    old_hangeul_layout_type_name?: string;
+    link?: string;
+};
 
 declare var Ko_type: string;
 declare var ohi_KE: string;
@@ -23,28 +54,34 @@ declare var option: {
     phonemic_writing: number | boolean;
     [name: string]: any;
 };
-declare var ohiQ: number[];
+// 본체에서는 잠깐 0을 넣기도 하지만, 확장 진입점에서는 조합 배열로 돌아온 상태입니다.
+declare var ohiQ: Exclude<OHICompositionState, 0>;
 declare var ohiRQ: number[];
 declare var prev_ohiQ: number[];
 declare var prev_ohiRQ: number[];
-declare var NFD_stack: { phoneme: number[] };
+declare var NFD_stack: {
+    (): void;
+    phoneme: number[];
+    phoneme_R: number[];
+    combined_phoneme: number[];
+};
 declare var pressed_keys: number[];
 declare var pressing_keys: number;
-declare function ohiHangeul2(f: HTMLInputTarget, e: OHIKeyboardEvent, key: number): void;
+declare function ohiHangeul2(f: HTMLInputTarget, e: OHIInputEvent, key: number): void;
 declare var compatibility_ggeut: number[];
 declare function convert_into_ohi_hangeul_phoneme(c: number): number;
 declare function convert_into_unicode_hangeul_phoneme(c: number): number;
-declare function ohiDoubleJamo(kind: number, first: number, second: number): number;
-declare function find_layout_info(language: string, type: string): { layout: number[] } | false;
-declare function find_current_layout(): number[];
+declare function ohiDoubleJamo(kind: OHIJamoKind, first: number, second: number): number;
+declare function find_layout_info(language: string, type: string): OHILayoutInfo | false;
+declare function find_current_layout(): OHIKeyLayout;
 declare function is_old_hangeul_input(): boolean;
 declare function is_phonemic_writing_input(): boolean;
-declare function ohiInsert(f: HTMLInputTarget, m: any, q: number[] | number): void;
-declare function complete_hangeul_syllable(f?: HTMLInputTarget): void;
-declare function show_keyboard_layout(type?: any): any;
+declare function ohiInsert(f: HTMLInputTarget, m: OHIInsertMode, q: number[] | number): true | void;
+declare function complete_hangeul_syllable(f?: HTMLInputTarget | null): void;
+declare function show_keyboard_layout(type?: OHISwitch): false | void;
 declare function show_keyboard_layout_info(): void;
 declare function show_options(): void;
-declare function inputText_focus(): void;
+declare function inputText_focus(f?: HTMLElement | null): void;
 declare function ohiKeyswap(e: KeyboardEvent, key: number): number;
 declare function tableKey_press(key: number): void;
 
@@ -55,9 +92,9 @@ namespace OHIExtension {
     // OHI가 조회하는 자판 정보(info)는 그대로 두고 layout 속성만 바꾸므로
     // 글자 입력과 화면 자판이 같은 배열을 사용합니다.
     type LayoutVariants = {
-        info: { layout: number[] };
-        disabled: number[]; // 덧붙인 기능을 껐을 때: 두 자판 모두 원래 배열
-        enabled: number[]; // 덧붙인 기능을 켰을 때: 원래 배열을 복사하고 겹받침과 기호를 더한 배열
+        info: OHILayoutInfo;
+        disabled: OHIKeyLayout; // 덧붙인 기능을 껐을 때: 두 자판 모두 원래 배열
+        enabled: OHIKeyLayout; // 덧붙인 기능을 켰을 때: 원래 배열을 복사하고 겹받침과 기호를 더한 배열
     };
     const variants: Partial<Record<SupportedLayout, LayoutVariants>> = {};
 
@@ -161,22 +198,23 @@ namespace OHIExtension {
             first: 0x1161,
             last: 0x1175,
             offset: 35,
-            combineMode: 1
+            combineMode: 1 as const
         },
         final: {
             first: 0x11A8,
             last: 0x11C2,
             offset: 0,
-            combineMode: 2
+            combineMode: 2 as const
         }
     };
     type JamoKind = keyof typeof JAMO;
     type CombinableJamoKind = Exclude<JamoKind, 'initial'>;
 
     /** 요즘 한글 조합 자모의 유니코드 범위인지 확인합니다. */
-    function isModern(kind: JamoKind, jamo: number) {
+    function isModern(kind: JamoKind, jamo: number | number[]): jamo is number {
         const { first, last } = JAMO[kind];
-        return Number.isInteger(jamo) && first <= jamo && jamo <= last;
+        // 정수인지 먼저 살피므로 뒤의 범위 비교에서는 숫자로 다룰 수 있습니다.
+        return Number.isInteger(jamo) && first <= (jamo as number) && (jamo as number) <= last;
     }
 
     /** 유니코드 조합 자모를 OHI의 낱내자 조합값으로 바꿉니다. */
@@ -373,7 +411,7 @@ namespace OHIExtension {
     * - true: 확장에서 입력을 마쳤으므로 본체의 일반 두벌식 처리를 건너뜁니다.
     * - false: 확장에서 처리하지 않았으므로 본체가 평소대로 글쇠를 처리합니다.
     */
-    export function tryExtendedInput(f: HTMLInputTarget, e: OHIKeyboardEvent, key: number) {
+    export function tryExtendedInput(f: HTMLInputTarget, e: OHIInputEvent, key: number) {
         return tryAlternateShift(f, e, key) || tryDoubleFinal(f, e, key);
     }
 
@@ -390,7 +428,7 @@ namespace OHIExtension {
      *
      * 숫자는 OHI 내부 낱자 코드이며 자판 종류에 따른 글쇠 배치는 살펴보지 않습니다.
      */
-    function tryAlternateShift(f: HTMLInputTarget, e: OHIKeyboardEvent, key: number) {
+    function tryAlternateShift(f: HTMLInputTarget, e: OHIInputEvent, key: number) {
         if (!isEnabled() || NFD_stack.phoneme.length || (e && e.shiftKey)) return false;
         const type = supportedType();
         if (key !== (type === '2-KSX5002' ? 59 : 47)) return false;
@@ -465,7 +503,7 @@ namespace OHIExtension {
      * 다만 기존 홀소리와 어울려 겹홀소리를 만들 수 있으면 홀소리를 먼저 씁니다.
      * 시프트를 누른 윗글쇠는 받침을 바로 고른 것으로 처리합니다.
      */
-    export function tryDoubleFinal(f: HTMLInputTarget, _e: OHIKeyboardEvent, key: number): boolean {
+    export function tryDoubleFinal(f: HTMLInputTarget, _e: OHIInputEvent, key: number): boolean {
         // 확장이 꺼졌거나 첫가끝 자모를 따로 쌓는 중이면 기존 OHI에 맡깁니다.
         if (!isEnabled() || NFD_stack.phoneme.length) return false;
         if (!((65 <= key && key <= 90) || (97 <= key && key <= 122))) return false;
