@@ -1,3 +1,13 @@
+// @ts-check
+/** Modified Version (https://ssgi.kr/ohi)
+
+ * Modifier : Sinseiki <eekdland@naver.com>
+ * Last Update : 2026/11/27
+ * GitHub : https://github.com/Sinseiki/ohi
+
+ **/
+
+
 /** Modified Version (http://ohi.pat.im)
 
  * Modifier : Pat-Al <pat@pat.im> (https://pat.im/910)
@@ -33,6 +43,45 @@
   The license can be found at http://www.gnu.org/licenses/gpl.txt.
 
 **/
+
+/** @typedef {HTMLInputElement | HTMLTextAreaElement} HTMLInputTarget 글을 넣는 글상자 */
+/** @typedef {KeyboardEvent | 0} OHIKeyboardEvent 글쇠 일거리 또는 일거리 없이 넣을 때의 0 */
+/** @typedef {OHIKeyboardEvent | MouseEvent} OHIInputEvent 글쇠 또는 화상 배열표의 일거리, 또는 일거리 없이 넣을 때의 0 */
+/** @typedef {number | boolean | number[] | string} OHIInsertMode 앞 글을 남기거나 조합할 때 넘기는 값 */
+/** @typedef {number[] | 0} OHICompositionState 완성형 조합 배열 또는 본체에서 조합을 바꿀 때 잠깐 쓰는 0 */
+/** @typedef {0 | 1 | 2} OHIJamoKind 첫소리(0), 가운뎃소리(1), 끝소리(2) */
+/** @typedef {number | boolean | string} OHISwitch 설정을 켜거나 끌 때 넘기는 값 */
+/** @typedef {(number | number[])[]} OHIKeyLayout 글쇠별 부호값 또는 갈마들이 낱자 목록 */
+/** @typedef {(number | number[] | number[][])[]} OHIExtendedLayout 글쇠별 확장 배열 */
+/** @typedef {(string | number)[]} OHIKeyLabels 화상 배열표 한 줄에 들어가는 문자 또는 특수 부호값 */
+/** @typedef {OHIKeyLabels[]} OHIKeyLabelTable 화상 배열표의 줄 배열 */
+/** @typedef {{phonemes: number[], char: number}} OHIChordCombination 모아치기 낱자 조합 규칙 */
+/** @typedef {{phonemes: number[], chars: number[]}} OHIPhonemeAbbreviation 낱자 기준 줄임말 규칙 */
+/** @typedef {{keys: string[], chars: number[], prev_keys?: string[], class?: string[], prev_class?: string[]}} OHIKeyAbbreviation 글쇠 기준 줄임말 규칙 */
+/** @typedef {{code: number, keys: number[]}} OHIKeyTableEntry 부호값과 글쇠값의 대응 */
+/**
+ * 자판 정보. 기본 배열 밖의 항목은 자판에 따라 없을 수 있습니다.
+ * @typedef {Object} OHILayoutInfo
+ * @property {string} KE 한·영 종류
+ * @property {string} type_name 자판 이름
+ * @property {string} [full_name] 자판의 전체 이름
+ * @property {OHIKeyLayout} layout 기본 배열
+ * @property {number[]} [sublayout] 보조 배열
+ * @property {OHIKeyLayout} [capslock_layout] 대문자 고정 때의 기본 배열
+ * @property {number[]} [capslock_sublayout] 대문자 고정 때의 보조 배열
+ * @property {OHIExtendedLayout} [extended_hangeul_layout] 한글 확장 배열
+ * @property {OHIExtendedLayout | null} [extended_sign_layout] 기호 확장 배열
+ * @property {OHIExtendedLayout | null} [capslock_extended_sign_layout] 대문자 고정 때의 기호 확장 배열
+ * @property {number[][]} [hangeul_combination_table] 이어치기 낱자 조합표
+ * @property {number[][]} [hangeul_convenience_combination_table] 편의 조합표
+ * @property {number[][]} [character_combination_table] 한글 아닌 문자 조합표
+ * @property {OHIChordCombination[]} [moachigi_hangeul_combination_table] 모아치기 낱자 조합표
+ * @property {OHIPhonemeAbbreviation[]} [ieochigi_hangeul_abbreviation_table] 이어치기 줄임말
+ * @property {OHIPhonemeAbbreviation[]} [moachigi_hangeul_abbreviation_table] 모아치기 낱자 기준 줄임말
+ * @property {OHIKeyAbbreviation[]} [moachigi_multikey_abbreviation_table] 모아치기 글쇠 기준 줄임말
+ * @property {string} [old_hangeul_layout_type_name] 옛한글 자판 이름
+ * @property {string} [link] 자판 설명 주소
+ */
 
 var default_En_type = 'QWERTY';
 var default_Ko_type = '2-KSX5002';
@@ -152,11 +201,23 @@ function initialize_options() {
 
 initialize_options();
 
+// 완성형 조합 상태: 0~2는 첫소리, 3~5는 가운뎃소리, 6~8은 끝소리 자리입니다.
+// 각 묶음의 첫 칸은 바탕값, 뒤 두 칸은 겹낱자를 이룰 때 더할 값 등을 담습니다.
+// 요즘낱자를 완성형으로 넣을 때 각 묶음의 합에 첫소리는 127, 가운뎃소리는 35, 끝소리는 0을 더하면 OHI 낱자 부호값이 됩니다.
+// 두벌식에서는 끝소리를 다음 낱내자의 첫소리로 넘기기 위해 마지막 닿소리값도 따로 기억합니다. 옛낱자와 조합 중의 임시값은 위 규칙과 다를 수 있습니다.
+/** @type {OHICompositionState} */
 var ohiQ = [0,0,0,0,0,0,0,0,0]; // 조합하고 있는 완성형 한글 낱내자의 낱자들을 담는 배열 [첫,첫,첫,가,가,가,끝,끝,끝]
+/** @type {number[]} */
 var ohiRQ = [0,0,0,0,0,0,0,0,0]; // 조합하고 있는 완성형 한글 낱내자의 낱자들의 추가 정보를 담는 배열 (보기: 겹홀소리 조합용 홀소리인지, 받침 붙는 홀소리인지)
+// 글을 넣은 뒤 복사해 둔 완성형 조합 상태와 그 덧정보 (풀어쓰기 등에서 앞 낱내자를 되살릴 때 씀)
+/** @type {number[]} */
 var prev_ohiQ = [];
+/** @type {number[]} */
 var prev_ohiRQ = [];
+/** @type {number[]} */
 var backup_ohiQ = []; // 완성형 한글 낱내자를 옛한글 상태로 바꿀 때에 복사해 두는 배열
+// backup_ohiQ와 짝을 이루는 덧정보
+/** @type {number[]} */
 var backup_ohiRQ = [];
 var backspacing_state = 0; // 뒷걸음쇠 처리를 하고 있는지를 알리는 상태 변수 (ohiInsert 함수에 알림)
 var prev_cursor_position = -1; // 앞선 상태의 가리키개 자리 (모아치기 자판이나 줄임말 기능으로 넣은 글을 한꺼번에 지울 때 쓰임)
@@ -166,6 +227,8 @@ var abbreviation_processing_state = 0; // 줄임말 처리를 하고 있는지�
 var ohiStatus = document.createElement('div');
 var ohiTimeout = 0;
 
+// 기호 확장 상태값은 자판에 따라 뜻이 다릅니다. 0은 기본 배열입니다.
+// 세모이의 -1은 배열 고르기 대기, 1~3은 고른 배열입니다. 공세벌식 일부에서는 10을 더하여 다른 벌을 가릅니다.
 var sign_ext_state = 0; // 기호 확장 배열을 쓰고 있는지를 나타냄
 var phoneme_input_state = 0 // 풀어쓰기로 넣고 있는지를 나타냄 (ohiInsert 함수에 알림)
 
@@ -178,21 +241,31 @@ var shift_click = 0; // 배열표에서 윗글쇠 누른 상태
 var shiftlock_click = 0; // 배열표에서 Shift Lock을 누른 상태
 
 var browser = '', browser_ver = 0, nu = navigator.userAgent;
-var dkey, ukey;
+// 화상 배열표에서 같은 글쇠의 아랫글(dkey)과 윗글(ukey)을 나타내는 쿼티 기준 부호값 목록
+var /** @type {number[]} */ dkey, /** @type {number[]} */ ukey;
 
+// pressed_keys는 한 차례에 모아 둔 글쇠값이며, pressing_keys는 아직 떼지 않은 글쇠 수를 세는 값입니다.
+/** @type {number[]} */
 var pressed_keys = []; // 모아친 글쇠들의 값
+/** @type {number[]} */
 var prev_pressed_keys = []; // 바로 앞에 모아친 글쇠들의 값
+/** @type {string[]} */
 var prev_class = []; // 바로 앞에 모아친 줄임말의 종류(품사 등)
 var pressing_keys = 0; // 눌려 있는 글쇠 수
 var double_multikey_abbreviated_state = 0; // 줄여넣기를 두 차례 잇달아 했는지를 나타냄
 
 function NFD_stack() { // 먼저 넣은 낱자 정보가 배열의 뒤에 들어가고, 마지막으로 들어온 낱자가 배열의 맨 앞에 들어감
+	/** @type {number[]} */
 	var phoneme = []; // 글쇠로 친 첫가끝 낱자들을 겹낱자로 조합하지 않은 채로 담음
+	/** @type {number[]} */
 	var phoneme_R = []; // 조합하는 첫가끝 낱자들의 추가 정보를 담음 (보기: 겹홀소리 조합용 홀소리인지, 받침 붙는 홀소리인지)
+	/** @type {number[]} */
 	var virtual_phoneme = []; // 가상 낱자
+	/** @type {number[]} */
 	var combined_phoneme = []; // 조합한 첫가끝 낱자들을 담음 (첫+가 또는 첫+가+끝)
 }
 
+// 첫가끝 조합에 쓰는 세 배열을 비움. 조합 전 낱자와 조합 뒤 낱자는 뒤에 친 것이 앞에 놓입니다.
 function initialize_NFD_stack() {
 	NFD_stack.phoneme = [];
 	NFD_stack.phoneme_R = [];
@@ -201,12 +274,15 @@ function initialize_NFD_stack() {
 
 initialize_NFD_stack();
 
-var ohi_cheos, ohi_ga, ohi_ggeut, ohi_hotbadchim; // OHI에서 쓰는 요즘한글 첫·가·끝 낱자
-var unicode_NFD_hangeul_phoneme = [], unicode_cheos = [], unicode_ga = [], unicode_ggeut=[]; // 유니코드 한글 낱자, 유니코드 한글 첫·가·끝 낱자
-var unicode_modern_hangeul_phoneme= [], unicode_modern_cheos = [], unicode_modern_ga = [], unicode_modern_ggeut = []; // 유니코드 조합형 한글 낱자, 유니코드 조합형 요즘한글 첫·가·끝 낱자
-var compatibility_hangeul_phoneme = [], compatibility_modern_cheos = [], compatibility_ga = [], compatibility_ggeut = []; // 유니코드 한글 호환 자모
-var halfwidth_cheos = [], halfwidth_ga = [], halfwidth_ggeut= [];
+// OHI 낱자 부호표와 유니코드 낱자 부호표는 서로 같은 차례에 놓인 원소로 맞대어 바꿉니다.
+var /** @type {number[]} */ ohi_cheos, /** @type {number[]} */ ohi_ga, /** @type {number[]} */ ohi_ggeut, /** @type {number[]} */ ohi_hotbadchim; // OHI에서 쓰는 요즘한글 첫·가·끝 낱자
+var /** @type {number[]} */ unicode_NFD_hangeul_phoneme = [], /** @type {number[]} */ unicode_cheos = [], /** @type {number[]} */ unicode_ga = [], /** @type {number[]} */ unicode_ggeut=[]; // 유니코드 한글 낱자, 유니코드 한글 첫·가·끝 낱자
+var /** @type {number[]} */ unicode_modern_hangeul_phoneme= [], /** @type {number[]} */ unicode_modern_cheos = [], /** @type {number[]} */ unicode_modern_ga = [], /** @type {number[]} */ unicode_modern_ggeut = []; // 유니코드 조합형 한글 낱자, 유니코드 조합형 요즘한글 첫·가·끝 낱자
+var /** @type {number[]} */ compatibility_hangeul_phoneme = [], /** @type {number[]} */ compatibility_modern_cheos = [], /** @type {number[]} */ compatibility_ga = [], /** @type {number[]} */ compatibility_ggeut = []; // 유니코드 한글 호환 자모
+var /** @type {number[]} */ halfwidth_cheos = [], /** @type {number[]} */ halfwidth_ga = [], /** @type {number[]} */ halfwidth_ggeut= [];
 
+// 현재 쓰는 한·영 자판의 배열 정보 객체. 처음에는 자판 정보가 없는 빈 배열입니다.
+/** @type {OHILayoutInfo | []} */
 var current_layout_info=[];
 
 function browser_detect() {
@@ -227,6 +303,10 @@ function browser_detect() {
 	}
 }
 
+// f: 글을 넣는 글상자. 선택된 글을 지우거나 가리키개 바로 앞 글을 지운 뒤 완성형 조합 상태를 비웁니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ */
 function ohiBackspace(f) { // backspace 동작
 	if(document.selection && browser=='MSIE' && browser_ver<9) {
 		var s=document.selection.createRange();
@@ -259,12 +339,14 @@ function ohiBackspace(f) { // backspace 동작
 		}
 	}
 	else {
+		// bs_start, bs_end: 지울 글의 처음과 끝 자리. 선택한 글이 없으면 앞 글의 범위를 헤아립니다.
 		var bs_start = f.selectionStart;
 		var bs_end = f.selectionEnd;
 		if(!bs_end) return;
 		if(bs_start == bs_end) {
 			if(!NFD_stack.phoneme.length && prev_cursor_position<0) { // 첫가끝 조합 상태가 아닐 때
 			// 첫가끝 조합형으로 넣은 한글을 낱내자 단위로 지울 수 있게 낱내자의 낱자, 채움 문자, 방점 수를 셈
+				// i: 지울 첫가끝 부호 수, ggeut: 끝소리가 있었는지 (0 또는 1)
 				var i=0, ggeut=0;
 				do {
 					var code = f.value.substr(bs_start-i-1,1).charCodeAt(0);
@@ -283,6 +365,12 @@ function ohiBackspace(f) { // backspace 동작
 	ohiInsert(f,0,0);
 }
 
+// 줄임말이나 모아치기로 넣은 글을 앞서 기억한 가리키개 자리까지 한꺼번에 지웁니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리
+ * @returns {boolean}
+ */
 function ohiHangeul_moa_backspace(f,e) {
 	if(f.selectionEnd) {
 		if(prev_cursor_position>=0 && f.selectionEnd > prev_cursor_position) {
@@ -297,6 +385,12 @@ function ohiHangeul_moa_backspace(f,e) {
 	return true;
 }
 
+// 한글 아닌 문자 조합을 한 단계 되돌립니다. 조합 차례를 담은 배열의 마지막 값을 버리고 앞 값을 다시 넣습니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리
+ * @returns {boolean}
+ */
 function ohiCombinedCharacter_backspace(f,e) {
 	if(e.preventDefault) e.preventDefault();
 	if(character_combination_queue.length) {
@@ -311,6 +405,13 @@ function ohiCombinedCharacter_backspace(f,e) {
 	return false;
 }
 
+// 한글 조합 가운데 마지막으로 친 낱자를 지웁니다. true이면 이 함수에서 뒷걸음쇠 처리를 마쳤다는 뜻입니다.
+// f: 글상자, e: 글쇠 일거리 또는 일거리 없이 부를 때의 0
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리
+ * @returns {boolean}
+ */
 function ohiHangeul_backspace(f,e) {
 	var i,j;
 	var KE=ohi_KE;
@@ -325,6 +426,7 @@ function ohiHangeul_backspace(f,e) {
 	}
 
 	if(ohiQ[1] || ohiQ[4] || ohiQ[0]&&ohiQ[3]) { // Backspace (요즘한글 조합 상태)
+		// 완성형 조합 배열의 뒤에서부터 마지막으로 값이 든 칸을 찾아 비웁니다.
 		for(i=8; !ohiQ[i];) i--;
 		backspacing_state=1;
 		ohiInsert(f,ohiQ[i]=0,ohiQ);
@@ -340,6 +442,7 @@ function ohiHangeul_backspace(f,e) {
 			if(browser=="MSIE" && browser_ver<9 ) { // IE ~8
 				i=NFD_stack.combined_phoneme.length-1; while(i--) ohiBackspace(f);
 			}
+			// 마지막 낱자를 뺀 나머지 낱자들로 첫가끝 조합을 처음부터 다시 만듭니다.
 			var temp_NFD_stack_phoneme = NFD_stack.phoneme.slice();
 			var temp_NFD_stack_phoneme_R = NFD_stack.phoneme_R.slice();
 			initialize_NFD_stack();
@@ -385,16 +488,26 @@ function ohiHangeul_backspace(f,e) {
 	return false;
 }
 
+// a: 낱자 종류 (0 첫소리, 1 가운뎃소리, 2 끝소리), c: 먼저 넣은 조합값, d: 새로 넣을 조합값.
+// 조합이 되면 앞 값에 더할 값을, 되지 않으면 0을 돌려줍니다.
+/**
+ * @param {OHIJamoKind} a 첫소리(0), 가운뎃소리(1), 끝소리(2) 구분 (함수 안에서 조합표로 바뀜)
+ * @param {number} c 앞 조합값
+ * @param {number} d 뒤 조합값
+ * @returns {number}
+ */
 function ohiDoubleJamo(a,c,d) {
 	var i,j;
 
 	if(typeof current_layout_info.hangeul_combination_table != 'undefined') { // 낱자 조합 규칙이 따로 있으면
 		var c1, c2, c3, combination_table = current_layout_info.hangeul_combination_table;
 		for(i=0; i<combination_table.length; ++i) {
+			// 조합표의 첫 원소는 두 낱자 부호를 0x10000을 경계로 묶은 값입니다. 두 부호를 갈라 OHI 부호값으로 바꿉니다.
 			c1 = convert_into_ohi_hangeul_phoneme(parseInt(combination_table[i][0]/0x10000));
 			c2 = convert_into_ohi_hangeul_phoneme(combination_table[i][0]%0x10000);
 			c3 = convert_into_ohi_hangeul_phoneme(combination_table[i][1]);
 			if(!c1 || !c2 || !c3) continue;
+			// j: 조합값과 OHI 낱자 부호표 사이의 차이값
 			if(a==0 && ohi_cheos.indexOf(c3)>=0) j=127;
 			else if(a==1 && ohi_ga.indexOf(c3)>=0) j=35;
 			else if(a==2 && ohi_ggeut.indexOf(c3)>=0) j=0;
@@ -404,6 +517,7 @@ function ohiDoubleJamo(a,c,d) {
 		return 0;
 	}
 
+	// 따로 정한 낱자 조합표가 없으면 아래 기본 겹낱자 조합표를 씁니다.
 	var j=[ // Double Jamos
 		[ [1,7,18,21,24],1,7,18,21,24 ], // Cho
 		[ [39,44,49],[31,32,51],[35,36,51],51 ], // Jung
@@ -415,15 +529,31 @@ function ohiDoubleJamo(a,c,d) {
 	for(a=a[i], i=a.length||1; 1; i--) if(!i || d==a || d==a[i-1]) return i;
 }
 
+// f: 글상자, m: 앞 글을 남길지 덮어쓸지와 새 글을 선택해 둘지를 가리는 값.
+// q: 넣을 문자 부호값 또는 완성형 조합 배열.
+// q가 0이면 글을 넣지 않고 조합 상태만 비웁니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInsertMode} m 앞 글을 남기거나 새 글을 넣는 데 쓰는 값
+ * @param {number | number[]} q 넣을 부호값 또는 조합 배열. 0이면 조합 상태를 비움
+ * @returns {true | void} 0을 넘겨 조합 상태만 비우면 true, 그 밖에는 돌려주는 값 없음
+ */
 function ohiInsert(f,m,q) { // Insert
-// q가 숫자이면 그 부호값에 맞는 유니코드 부호를 넣음
-// q가 배열(ohiQ)이면 유니코드 완성형 한글로 넣음
+// q가 0이 아닌 숫자이면 그 부호값에 해당하는 문자를 처리함
+// q가 9칸의 조합 배열이면 완성형 한글이나 호환 자모로 바꾸어 넣음
+// 옛낱자가 들어 있으면 조건에 따라 첫가끝 조합형으로 바꿈
 
+	// a: 한글 아닌 문자 조합표의 검색 결과 또는 반복 첨자, b: 앞 문자에 이어지는 조합표 검색 결과
+	// c: 넣을 부호값 (처음에는 q), d: 처음 넘겨받은 m이 참인지 (0 또는 1)
+	// g, h: 각각 앞선 조합 배열과 지금 조합 배열에 든 양수 원소의 수
+	// i, j, k: 첫소리, 가운뎃소리, 끝소리 조합값의 합
+	// u: ohiQ에 들어 있는 첫가끝 낱자 부호값의 수
 	var a,b,c=q,d=m?1:0,g=0,h=0,i=0,j=0,k=0,u=0;
 	var character_combination_table = find_character_combination_table();
 
 	if(!sign_ext_state && c && typeof c == 'number' && unicode_NFD_hangeul_phoneme.indexOf(c)<0 && character_combination_table.length) { // 한글이 아닌 문자를 조합하여 넣기
 		complete_hangeul_syllable(f);
+		// a는 새 조합을 시작할 수 있는 규칙, b는 앞서 넣은 문자와 이어서 조합할 수 있는 규칙입니다.
 		a = character_combination_table.filter(function(e) {return e[0]==c});
 		b = character_combination_queue.length ? character_combination_table.filter(function(e) {return e[1]==c && e[0]==character_combination_queue[character_combination_queue.length-1]}) : [];
 
@@ -451,6 +581,8 @@ function ohiInsert(f,m,q) { // Insert
 	}
 
 	if(!q) {
+		// ohiQ와 ohiRQ뿐 아니라 앞선 조합을 담은 배열도 함께 비웁니다.
+		// 연쇄 대입을 하므로 새 배열 하나를 네 변수가 함께 가리킵니다.
 		ohiQ = ohiRQ = prev_ohiQ = prev_ohiRQ = [0,0,0,0,0,0,0,0,0];
 		return true;
 	}
@@ -463,6 +595,9 @@ function ohiInsert(f,m,q) { // Insert
 		}
 
 		if(!u) { // 요즘한글 자판으로 요즘낱자 처리 (완성형)
+			// 세 묶음의 합으로 완성형 낱내자 부호를 셈합니다. 588은 21×28, 28은 받침 없음까지 센 끝소리 가짓수입니다.
+			// 첫소리와 끝소리의 조합값은 부호표의 빈 자리를 빼서 유니코드 완성형의 낱자 차례로 맞춥니다.
+			// 첫소리와 가운뎃소리 중 하나라도 없으면 0x3130에 조합값을 더하여 호환 자모로 나타냅니다.
 			var m=m||'0,0,0,0,0,0,0,0,0', i=q[0]+q[1]+q[2], j=q[3]+q[4]+q[5], k=q[6]+q[7]+q[8];
 			c=i&&j?0xac00+(i-(i<3?1:i<5?2:i<10?4:i<20?11:12))*588+(j-31)*28+k-(k<8?0:k<19?1:k<25?2:3):0x3130+(i||j||k);
 		}
@@ -472,6 +607,7 @@ function ohiInsert(f,m,q) { // Insert
 			backup_ohiRQ = ohiRQ.slice();
 			if(h>1) ohiBackspace(f);
 			for(a=0;a<3;++a) {
+				// 각 묶음의 합을 첫가끝 부호로 되돌려 첫·가·끝 차례로 다시 넣습니다.
 				c=backup_ohiQ[a*3]+backup_ohiQ[a*3+1]+backup_ohiQ[a*3+2];
 				if(!c) continue;
 				if(c<158) c+=!a?127:a==1?35:0;
@@ -492,6 +628,7 @@ function ohiInsert(f,m,q) { // Insert
 			return;
 		}
 		else {
+			// 앞선 조합이 끝나는 때를 헤아려 풀어쓰기 또는 첫가끝 조합형으로 바꿔 넣습니다.
 			for(a=0;a<9;++a) if(prev_ohiQ[a]>0) ++g;
 			if(g>0 && h<2 || d) {
 				phoneme_input_state=1;
@@ -512,12 +649,20 @@ function ohiInsert(f,m,q) { // Insert
 
 	if(is_moachigi_input() && NFD_stack.phoneme.length && typeof q=='number' && unicode_NFD_hangeul_code.indexOf(c)<0) complete_hangeul_syllable(f);
 	
+	// 글상자에 실제로 문자를 넣고 다음 타를 처리할 때 쓸 조합 상태를 복사해 둡니다.
 	ohiInput(f,m,c);
 
 	prev_ohiQ = ohiQ.slice();
 	prev_ohiRQ = ohiRQ.slice();
 }
 
+// f: 글상자, m: 앞 글과 선택 범위를 다루는 값, c: 실제로 넣을 문자 부호값.
+// 조합 규칙을 정하지 않고 글상자의 글과 선택 범위를 직접 바꾸는 곳입니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInsertMode} m 앞 글과 선택 범위를 다루는 값
+ * @param {number} c 넣을 부호값
+ */
 function ohiInput(f,m,c) {
 	if(document.selection && browser=="MSIE" && browser_ver<10 ) { // IE ~9
 		var s=document.selection.createRange(), t=s.text;
@@ -525,13 +670,17 @@ function ohiInput(f,m,c) {
 		s.text=(m=='0,0,0,0,0,0,0,0,0'||c&&t.length>1?'':t.substr(0,t.length))+String.fromCharCode(c);
 		if(!c || !m || s.moveStart('character',-1)) s.select();
 	}
+	// 요즘 누리보기에서는 m이 참이거나 부호값이 32보다 작으면 넣은 글을 선택해 둡니다.
+	// 그 밖에는 넣은 글 뒤로 가리키개를 옮깁니다.
 	else if(f.selectionEnd+1) {
+		// 선택된 한 글자를 새 글로 덮을지, 뒤에 이어 넣을지를 m에 따라 가릅니다. 0이 아홉 개 든 배열을 문자열과 느슨하게 맞대어 보는 부분에 유의합니다.
 		if(m!='0,0,0,0,0,0,0,0,0' && f.selectionEnd-f.selectionStart==1) f.selectionStart++;
 		var e=document.createEvent('KeyboardEvent');
 		if(e.initKeyEvent && !(browser=="Firefox" && browser_ver>=12 ) && browser!="Chrome") { // Gecko
 			e.initKeyEvent('keypress',0,0,null,0,0,0,0,127,c);
 			if(c && f.dispatchEvent(e) && m) f.selectionStart--;
 		} else { // Firefox 12~, Chrome
+			// 글상자 뒤쪽 글을 남겨 두고 문자를 넣은 뒤 스크롤 자리와 선택 범위를 맞춥니다.
 			var scrollTop = f.scrollTop, scrollLeft = f.scrollLeft, selectionStart = f.selectionStart;
 			var endText = f.value.substr(f.selectionEnd,f.value.length);
 			f.value = f.value.substr(0,selectionStart)+String.fromCharCode(c);
@@ -545,6 +694,11 @@ function ohiInput(f,m,c) {
 	}
 }
 
+// 글상자의 선택 끝은 그대로 두고 그 앞 length만큼을 선택합니다. 0이면 선택을 풉니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {number} length 끝 자리에서 거꾸로 선택할 글자 수
+ */
 function ohiSelection(f,length) {
 	if(document.selection && browser=="MSIE" && browser_ver<9) { // IE ~8
 	}
@@ -569,6 +723,10 @@ function esc_ext_state() { // 기호 확장 배열 또는 한글 확장 배열�
 	character_combination_queue = [];
 }
 
+// 완성형 조합 배열을 복사한 뒤 화면의 낱내자를 지우고 첫·가·끝 차례로 다시 넣습니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ */
 function change_syllable_from_NFC_to_NFD(f) { // 완성형(NFC) → 첫가끝(NFD) (조합을 막 끝낸 낱내자를 바꿈)
 	var _ohiQ = ohiQ.slice(), _ohiRQ = ohiRQ.slice();
 	ohiBackspace(f);
@@ -585,6 +743,10 @@ function change_syllable_from_NFC_to_NFD(f) { // 완성형(NFC) → 첫가끝(NF
 	if(i>=0 && _ohiQ[6]+_ohiQ[7]+_ohiQ[8]) ohiInsert(f,0,unicode_ggeut[i]);
 }
 
+// 첫가끝 조합 결과는 뒤집힌 차례로 들어 있으므로 배열의 뒤에서 첫소리를 가져옵니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ */
 function change_syllable_from_NFD_to_NFC(f) { // 첫가끝(NFD) → 완성형(NFC) (조합을 막 끝낸 낱내자를 바꿈)
 	var i,j,k;
 
@@ -593,6 +755,7 @@ function change_syllable_from_NFD_to_NFC(f) { // 첫가끝(NFD) → 완성형(NF
 	// 요즘낱자 첫+가 또는 첫+가+끝
 		i=NFD_stack.combined_phoneme.length;
 		for(j=0;j<i;++j) ohiBackspace(f);
+		// 첫·가·끝 유니코드 부호의 차이를 OHI 조합 배열의 값으로 바꾸어 넣습니다.
 		ohiQ = [NFD_stack.combined_phoneme[i-1]-0x1100+11+(NFD_stack.combined_phoneme[i-1]>0x1108 ? 1:0),0,0,
 			NFD_stack.combined_phoneme[i-2]-0x1161+31,0,0,
 			i==3 ? (NFD_stack.combined_phoneme[0]-0x11A8+1+(NFD_stack.combined_phoneme[0]>0x11AE ? 1:0)+(NFD_stack.combined_phoneme[0]>0x11B8 ? 1:0)+(NFD_stack.combined_phoneme[0]>0x11BD ? 1:0)):0,0,0
@@ -638,6 +801,12 @@ function change_syllable_from_NFD_to_NFC(f) { // 첫가끝(NFD) → 완성형(NF
 	}
 }
 
+// c1, c2: 조합할 두 낱자의 유니코드 첫가끝 부호값. 조합 결과의 부호값 또는 0을 돌려줍니다.
+/**
+ * @param {number} c1 앞 낱자 부호값
+ * @param {number} c2 뒤 낱자 부호값
+ * @returns {number}
+ */
 function combine_unicode_NFD_hangeul_phoneme(c1,c2) { // 유니코드 한글 낱자 조합하기
 	var i;
 	var combination_table;
@@ -646,6 +815,7 @@ function combine_unicode_NFD_hangeul_phoneme(c1,c2) { // 유니코드 한글 낱
 
 	if(typeof current_layout_info.moachigi_hangeul_combination_table != 'undefined' && typeof current_layout_info.hangeul_combination_table == 'undefined') {
 	// 모아치기 자판을 이어치기 방식으로 쓸 때
+		// 모아치기용 조합표에서는 낱자 차례를 따지지 않고 두 낱자짜리 규칙만 살핍니다.
 		combination_table = current_layout_info.moachigi_hangeul_combination_table;
 		for(i=0; i<combination_table.length; ++i) {
 			if(combination_table[i].phonemes.length!=2) continue;
@@ -676,6 +846,8 @@ function combine_unicode_NFD_hangeul_phoneme(c1,c2) { // 유니코드 한글 낱
 		if(!is_old_hangeul_input() && option.convenience_combination && typeof layout_info.hangeul_convenience_combination_table != 'undefined')
 			combination_table = layout_info.hangeul_convenience_combination_table.concat(combination_table);
 
+		// 이어치기 조합표에서는 두 낱자를 한 값으로 묶어서 차례까지 맞는 규칙을 찾습니다.
+		/** @type {number} */
 		var combined_phoneme=0x10000*c1+c2;
 		for(i=0; i<combination_table.length; ++i) {
 			if(combined_phoneme==combination_table[i][0]) {
@@ -688,6 +860,9 @@ function combine_unicode_NFD_hangeul_phoneme(c1,c2) { // 유니코드 한글 낱
 	}
 }
 
+/**
+ * @param {HTMLInputTarget | null} [f] 생략하면 기본 글상자를 찾음
+ */
 function complete_hangeul_syllable(f) {
 // 한글 낱내자 조합을 끊고 설정에 따라 한글 부호값을 바꿈
 // option.only_NFD_hangeul_encoding==0 : 첫가끝 조합형 낱내자(NFD)를 완성형 낱내자(NFC)로 바꿈
@@ -713,13 +888,20 @@ function complete_hangeul_syllable(f) {
 	// 완성형(NFC) → 첫가끝(NFD)
 	else if(option.only_NFD_hangeul_encoding && !is_old_hangeul_input() && ohiQ[0]+ohiQ[3]+ohiQ[6]) change_syllable_from_NFC_to_NFD(f);
 
+	// 글상자에 남긴 낱내자와 별개로 안쪽 조합 상태를 비워 다음 글쇠가 앞 낱내자를 바꾸지 않게 합니다.
 	ohiInsert(f,0,0);
 	initialize_NFD_stack();
 	if(!abbreviation_processing_state) prev_cursor_position = -1;
 }
 
+/**
+ * @param {number} c 바꿀 부호값
+ * @returns {number}
+ */
 function convert_into_ohi_hangeul_phoneme(c) {
 // 유니코드의 요즘한글 낱자 코드와 홀소리 호환 낱자 코드를 ohi에서 쓰는 코드로 바꾸기 (옛한글 낱자는 바꾸지 않음)
+	// 첫소리와 가운뎃소리의 반환값은 ohiQ에 넣는 조합값보다 각각 127과 35만큼 큽니다.
+	// 해당하는 부호표 원소가 없으면 넘겨받은 값을 그대로 돌려줍니다.
 	if(unicode_modern_cheos.indexOf(c)>=0) c=ohi_cheos[unicode_modern_cheos.indexOf(c)];
 	else if(unicode_modern_ga.indexOf(c)>=0) c=ohi_ga[unicode_modern_ga.indexOf(c)];
 	else if(unicode_modern_ggeut.indexOf(c)>=0) c=ohi_ggeut[unicode_modern_ggeut.indexOf(c)];
@@ -728,14 +910,24 @@ function convert_into_ohi_hangeul_phoneme(c) {
 	return c;
 }
 
+/**
+ * @param {number} c 바꿀 부호값
+ * @returns {number}
+ */
 function convert_into_unicode_hangeul_phoneme(c) {
 // ohi에서 쓰는 한글 낱자값을 유니코드 조합형 낱자 부호값으로 바꾸기
+	// ohiQ의 합을 넘길 때에는 먼저 첫소리 127, 가운뎃소리 35를 더해 부호표의 값으로 맞춥니다.
+	// 해당하는 부호표 원소가 없으면 넘겨받은 값을 그대로 돌려줍니다.
 	if(ohi_cheos.indexOf(c)>=0) c=unicode_cheos[ohi_cheos.indexOf(c)];
 	else if(ohi_ga.indexOf(c)>=0) c=unicode_ga[ohi_ga.indexOf(c)];
 	else if(ohi_ggeut.indexOf(c)>=0) c=unicode_ggeut[ohi_ggeut.indexOf(c)];
 	return c;
 }
 
+/**
+ * @param {number} c 바꿀 부호값
+ * @returns {number}
+ */
 function convert_into_compatibility_hangeul_letter(c) {
 // 호환 한글 자모로 바꾸기
 	c=convert_into_unicode_hangeul_phoneme(c);
@@ -756,6 +948,10 @@ function convert_into_compatibility_hangeul_letter(c) {
 	return c;
 }
 
+/**
+ * @param {number} c 바꿀 부호값
+ * @returns {number}
+ */
 function convert_into_halfwidth_hangeul_letter(c) {
 	c=convert_into_unicode_hangeul_phoneme(c);
 
@@ -769,6 +965,10 @@ function convert_into_halfwidth_hangeul_letter(c) {
 	return c;
 }
 
+/**
+ * @param {number} combined_phoneme 풀어 낼 겹낱자 부호값
+ * @returns {number[]}
+ */
 function convert_into_single_phonemes(combined_phoneme) {
 // 겹낱자를 홀낱자들로 바꿈
 	combined_phoneme = convert_into_unicode_hangeul_phoneme(combined_phoneme);
@@ -796,9 +996,14 @@ function convert_into_single_phonemes(combined_phoneme) {
 	return single_phonemes;
 }
 
+/**
+ * @param {number} NFC_c 완성형 낱내자 부호값
+ * @returns {[number, number, number] | false}
+ */
 function convert_NFC_into_NFD(NFC_c) {
 // 완성형 낱내자 부호값(NFC)을 받아서 첫가끝 조합형 낱자 단위 낱내자 부호값(NFD)으로 바꾸어 돌려줌
 	if(NFC_c<0xAC00 || NFC_c>0xD7A3) return false;
+	// i, j, k: 각각 첫소리, 가운뎃소리, 끝소리 부호값. 받침이 없으면 k는 0입니다.
 	var i,j,k;
 	i=parseInt((NFC_c-0xAC00)/588)+0x1100;
 	j=parseInt((NFC_c-0xAC00)%588/28)+0x1161;
@@ -807,9 +1012,14 @@ function convert_NFC_into_NFD(NFC_c) {
 	return [i,j,k];
 }
 
+/**
+ * @param {number[]} NFD_phonemes 첫가끝 낱자 부호값 목록
+ * @returns {number | false}
+ */
 function convert_NFD_into_NFC(NFD_phonemes) {
 // 첫가끝 조합형 낱자 단위 낱내자 부호값(NFD)을 받아 완성형 낱내자 단위 부호값(NFC)으로 돌려줌
 // 요즘한글에 쓰이지 않는 낱자가 있으면 거짓(false)값을 돌려줌
+	// p: 첫·가·끝 차례로 맞춘 낱자 배열, h: 넘겨받은 배열이 첫소리부터 시작하는지
 	var p=[], h,i,j,k;
 
 	if(NFD_phonemes.length>3 || NFD_phonemes.length<2) return false;
@@ -828,6 +1038,12 @@ function convert_NFD_into_NFC(NFD_phonemes) {
 	return 0xAC00+(p[0]-0x1100)*588+(p[1]-0x1161)*28+(p[2]-0x11A8);
 }
 
+// key는 기준 자판에 맞춰 바꾼 글쇠값입니다. 영문 배열에 대응하는 문자를 넣습니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function ohiRoman(f,e,key) { // Roman keyboard basic_layouts (Dvorak, Colemak)
 	var c=key;
 	var layout = find_current_layout();
@@ -836,8 +1052,14 @@ function ohiRoman(f,e,key) { // Roman keyboard basic_layouts (Dvorak, Colemak)
 	ohiInsert(f,0,c);
 }
 
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리
+ * @param {number} c 특수 글쇠값
+ * @returns {boolean}
+ */
 function ohiSpecialKey(f,e,c) {
-	if(c==0x1B) { // 글쇠값이 0 또는 escape이면 조합 끊기
+	if(c==0x1B) { // 글쇠값이 escape이면 조합 끊기
 		complete_hangeul_syllable(f);
 		return true;
 	}
@@ -859,6 +1081,11 @@ function ohiSpecialKey(f,e,c) {
 	return false;
 }
 
+// a: 같은 글쇠에 놓인 낱자들. 첫소리만 조합 중이면 홀소리를, 그 밖에는 닿소리를 고릅니다.
+/**
+ * @param {number[]} a 글쇠 자리에 있는 낱자 목록
+ * @returns {number}
+ */
 function Hangeul2_galmadeuli_selection(a) {
 	if(typeof a.length == 'undefined') return 0;
 	if(a.length==1) return a[0];
@@ -873,6 +1100,13 @@ function Hangeul2_galmadeuli_selection(a) {
 	return dah;
 }
 
+// f: 글상자, e: 글쇠 일거리(또는 0), key: 기준 자판에 맞춘 글쇠값.
+// 두벌식은 닿소리를 낱내자 조합 상태에 따라 첫소리 또는 끝소리로 가려 넣습니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function ohiHangeul2(f,e,key) { // 2-Beolsik
 	var i;
 	// OHI 확장: 겹받침 갈마들이와 대체 시프트를 ASCII 기호 앞에서 처리
@@ -906,11 +1140,13 @@ function ohiHangeul2(f,e,key) { // 2-Beolsik
 		return;
 	}
 
+	// OHI 부호표의 값을 완성형 조합에서 쓰는 값으로 맞춥니다.
 	if(ohi_cheos.indexOf(c)>=0) c-=127;
 	else if(ohi_ga.indexOf(c)>=0) c-=35;
 	else if(ohi_ggeut.indexOf(c)>=0) c-=127;
 
 	if(c<31) { // Jaum
+		// 가운뎃소리가 있으면 끝소리로 조합할 수 있는지 먼저 살핍니다. 아래 식은 조건을 살피면서 배열값도 바꿉니다.
 		if((!ohiQ[7] || !(ohiQ[0]=-1)) && ohiQ[3]) ohiQ[7]=ohiDoubleJamo(2,ohiQ[6],c);
 		if(!ohiQ[3] || ohiQ[0]<0 || ohiQ[0] && (!ohiQ[6] || !ohiQ[7]) && (ohiQ[6] || c==8 || c==19 || c==25)) {
 			i = ohiDoubleJamo(0,ohiQ[0],c);
@@ -922,6 +1158,7 @@ function ohiHangeul2(f,e,key) { // 2-Beolsik
 			ohiInsert(f,0,ohiQ=[c,0,0,0,0,0,0,0,0]);
 		}
 		else if(!ohiQ[0] && (ohiQ[0]=c) || (ohiQ[6]=ohiQ[6]||c)) ohiInsert(f,0,ohiQ);
+		// 끝소리를 겹받침으로 넣은 뒤에는 뒤 칸에 새 닿소리값을 기억합니다. 뒤이어 홀소리가 들어올 때 첫소리로 넘기기 위함입니다.
 		if(ohiQ[7]) ohiQ[7]=c;
 	}
 	else { // Moum
@@ -955,7 +1192,9 @@ function ohiHangeul2(f,e,key) { // 2-Beolsik
 			return;
 		}
 
+		// 홀소리 조합 가능 여부를 살피고, 끝소리 뒤에 홀소리가 오면 끝소리 일부를 다음 낱내자의 첫소리로 넘깁니다.
 		if((!ohiQ[4] || ohiQ[6] || !(ohiQ[3]=-1)) && !ohiQ[6]) ohiQ[4]=ohiDoubleJamo(1,ohiQ[3],c);
+		// 끝소리 뒤에 홀소리가 오면 끝소리의 마지막 닿소리를 다음 낱내자로 넘깁니다. 홑받침이면 6번 칸을 비우고 겹받침이면 앞 받침을 남깁니다.
 		if((ohiQ[0] && ohiQ[3]>0 && ohiQ[6]) && (ohiQ[7] || !(ohiQ[7]=ohiQ[6]) || !(ohiQ[6]=0))) {
 			ohiInsert(f,0,[ohiQ[0],ohiQ[1],0,ohiQ[3],ohiQ[4],0,ohiQ[6],0,0]);
 			ohiInsert(f,ohiQ,ohiQ=[ohiQ[7],0,0,c,0,0,0,0,0]);
@@ -965,6 +1204,12 @@ function ohiHangeul2(f,e,key) { // 2-Beolsik
 	}
 }
 
+// 첫가끝 조합을 하는 두벌식에서 닿소리의 첫·끝 구분과 도깨비불 처리를 먼저 합니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function NFD_hangeul2_preprocess(f,e,key) {
 	var layout_info = find_current_layout_info();
 	var layout = find_current_layout();
@@ -988,7 +1233,7 @@ function NFD_hangeul2_preprocess(f,e,key) {
 				complete_hangeul_syllable(f);
 				if(is_phonemic_writing_input() && option.phonemic_writing_adding_space_every_syllable_end) ohiInsert(f,0,32); // 풀어쓰기할 때 낱내자 뒤에 빈칸 넣기 (한글 조합이 새로 이어질 때)
 				if(!is_old_hangeul_input() && !option.only_NFD_hangeul_encoding) {
-					c = convert_into_ohi_hangeul_phoneme(c); // 완성형으로 조합하는 요즘한글 자판일 때 호환 자모로 바꿈
+					c = convert_into_ohi_hangeul_phoneme(c); // 완성형으로 조합하는 요즘한글 자판일 때 OHI 내부 부호값으로 바꿈
 				}
 				return c;
 			}
@@ -1021,7 +1266,7 @@ function NFD_hangeul2_preprocess(f,e,key) {
 		
 		if(!is_old_hangeul_input() && !option.only_NFD_hangeul_encoding) { // 완성형으로 조합하는 요즘한글 자판일 때	
 			if(unicode_ga.indexOf(NFD_stack.phoneme[0])>=0 && !combine_unicode_NFD_hangeul_phoneme(NFD_stack.combined_phoneme[0],c)) {
-			// 앞에 들어온 홀소리와 조합되지 않는 홀소리이면 조합을 끊고 호환 자모로 바꿈
+			// 앞에 들어온 홀소리와 조합되지 않는 홀소리이면 조합을 끊고 OHI 내부 부호값으로 바꿈
 				complete_hangeul_syllable(f);
 				c = convert_into_ohi_hangeul_phoneme(c);
 			}
@@ -1032,6 +1277,13 @@ function NFD_hangeul2_preprocess(f,e,key) {
 	return c;
 }
 
+// 이어치기 줄임말 표에서 먼저 들어간 낱자와 새 낱자가 차례대로 맞는 규칙의 chars를 돌려줍니다.
+/**
+ * @param {OHIPhonemeAbbreviation[]} abbreviation_table 줄임말 조합표
+ * @param {number} c1 앞 낱자
+ * @param {number} c2 뒤 낱자
+ * @returns {number[] | null}
+ */
 function seek_ieochigi_abbreviation(abbreviation_table, c1, c2) { // 줄임말 조합을 찾기 (이어치기 자판)
 	var i, chars=null;
 	for(i=0; i<abbreviation_table.length; ++i)
@@ -1040,7 +1292,12 @@ function seek_ieochigi_abbreviation(abbreviation_table, c1, c2) { // 줄임말 �
 	return null;
 }
 
+/**
+ * @param {OHIKeyAbbreviation[]} abbreviation_table 글쇠 기준 줄임말 조합표
+ * @returns {number[]}
+ */
 function seek_moachigi_abbreviation(abbreviation_table) { // 모아치기 자판의 줄임말 조합을 찾기
+	// i, j: 규칙과 글쇠를 찾는 첨자, l: 앞 글쇠 조건이 바로 맞지 않아 남겨 둔 규칙 번호 목록
 	var i,j,l=[];
 
 	for(i=0; i<abbreviation_table.length; ++i) {
@@ -1117,9 +1374,14 @@ function seek_moachigi_abbreviation(abbreviation_table) { // 모아치기 자판
 }
 
 
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {number} key 글쇠값
+ */
 function ohiHangeul3_abbreviation(f,key) { // 이어치기 세벌식 자판에서 줄임말 처리
 	if(!option.abbreviation || typeof current_layout_info.ieochigi_hangeul_abbreviation_table == 'undefined') return 0;
 
+	// c: 새 글쇠의 배열값, ch: 지금 조합 중인 마지막 낱자의 부호값, chars: 찾은 줄임말의 부호값 배열
 	var i,j;
 	var layout = find_current_layout();
 	var c = layout[key-33];
@@ -1149,6 +1411,13 @@ function ohiHangeul3_abbreviation(f,key) { // 이어치기 세벌식 자판에�
 	return 0;
 }
 
+// key에는 글쇠값뿐 아니라 줄임말을 넣을 때의 첫가끝 낱자 부호값도 들어올 수 있습니다.
+// c는 배열에서 고른 문자이며 처리 단계에 따라 유니코드 부호값 또는 OHI 부호값이 됩니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function ohiHangeul3(f,e,key) { // 세벌식 자판 - 낱자 단위 처리
 	var i, j, c=0;
 	var sublayout = [];
@@ -1157,6 +1426,7 @@ function ohiHangeul3(f,e,key) { // 세벌식 자판 - 낱자 단위 처리
 	var layout_info = find_current_layout_info();
 	var layout = find_current_layout();
 
+	// 줄임말을 넣는 도중에는 보조 배열과 기호 확장 배열을 새로 찾는 일을 건너뜁니다.
 	if(!abbreviation_processing_state) {
 		sublayout = find_sublayout();
 		extended_sign_layout = find_extended_sign_layout();
@@ -1236,6 +1506,7 @@ function ohiHangeul3(f,e,key) { // 세벌식 자판 - 낱자 단위 처리
 		 (typeof current_layout_info.hangeul_combination_table != 'undefined' || typeof current_layout_info.moachigi_hangeul_combination_table != 'undefined' || typeof current_layout_info.hangeul_convenience_combination_table != 'undefined')
 		) {
 		// 옛한글 자판이 아니고 타자기 자판이 아닐 때 낱자 결합 규칙 적용하기
+			// ch: 먼저 들어간 마지막 낱자에 해당하는 OHI 부호값. 뒤이어 두 낱자를 조합한 첫가끝 부호값으로 바뀝니다.
 			var ch;
 			if(ohiQ[6]) ch=ohiQ[6]+ohiQ[7];
 			else if(ohiQ[3]) ch=ohiQ[3]+ohiQ[4]+35;
@@ -1243,6 +1514,7 @@ function ohiHangeul3(f,e,key) { // 세벌식 자판 - 낱자 단위 처리
 
 			ch=combine_unicode_NFD_hangeul_phoneme(convert_into_unicode_hangeul_phoneme(ch),convert_into_unicode_hangeul_phoneme(c));
 			if(ch) {
+				// 겹낱자의 완성값 전체를 뒤 칸에 넣지 않고, 앞 칸의 합에서 얼마나 더해야 하는지를 담습니다.
 				if(ohiQ[6]) {
 					if(!ohiQ[7]) ohiQ[7]=convert_into_ohi_hangeul_phoneme(ch)-ohiQ[6];
 					else { // 3타로 넣는 받침이 들어갔을 때(순아래 2014 자판의 ㄹ+ㅁ+ㅁ→ㄿ, 이어치기 방식으로 쓰는 모아치기 자판)
@@ -1326,6 +1598,7 @@ function ohiHangeul3(f,e,key) { // 세벌식 자판 - 낱자 단위 처리
 		}
 	}
 
+	// 아래 세 갈래는 각각 첫소리(128~157 중 해당 값), 가운뎃소리(66~86), 끝소리(31 미만)를 다룹니다.
 	// 요즘한글 자판으로 요즘한글 넣기
 	if(!NFD_stack.phoneme.length && c>127 && c<158 && c!=147) { // Cho
 		if(NFD_stack.phoneme.length) ohiSelection(f,0);
@@ -1378,12 +1651,18 @@ function ohiHangeul3(f,e,key) { // 세벌식 자판 - 낱자 단위 처리
 	return 0;
 }
 
+/**
+ * @param {HTMLInputTarget} f 글상자
+ */
 function convert_syllable_into_phonemes(f) {
 // 낱내자를 낱자로 풀어 넣기 (풀어쓰기)
+	// chars: 문자 배열 (이 함수에서는 쓰이지 않음), c: 넣을 부호값, i와 j: 반복 첨자, k: 한 낱자 묶음의 합
 	var c,i,j,k,chars=[];
+	/** @type {number[]} */
 	var single_phonemes=[], hangeul_conversion_function;
 	if(!(ohiQ[0]+ohiQ[3]+ohiQ[6]) && !NFD_stack.phoneme.length) return;
 
+	// 글을 지울 때 조합 배열도 비워지므로 풀어쓰기에 쓸 조합 상태를 먼저 복사합니다.
 	var _ohiQ = ohiQ.slice();
 
 	if(option.phonemic_writing_in_halfwidth_letter && !is_old_hangeul_input()) hangeul_conversion_function = convert_into_halfwidth_hangeul_letter;
@@ -1455,6 +1734,11 @@ function convert_syllable_into_phonemes(f) {
 	}
 }
 
+// pressed_keys에 모인 글쇠를 바탕으로 줄임말, 낱자 조합, 일반 문자 처리를 차례로 합니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ */
 function ohiHangeul3_moa(f,e) { // 모아치기 세벌식 자판 처리
 	var i,j,k,l,m;
 	var c;
@@ -1462,16 +1746,24 @@ function ohiHangeul3_moa(f,e) { // 모아치기 세벌식 자판 처리
 	var extended_sign_layout;
 	var combination_table;
 
+	// pressed_chars: 글쇠를 첫가끝 낱자 등으로 바꾼 목록, temp_pressed_chars: 조합 규칙이 맞는지 살피는 복사본
+	/** @type {number[]} */
 	var pressed_chars = [];
+	/** @type {number[]} */
 	var temp_pressed_chars = [];
+	/** @type {number[]} */
 	var backup_prev_pressed_keys = [];
 	var special_keys = [32,13,8]; // 사이띄개(32), 줄바꾸개(13), 뒷걸음쇠(8)
 
+	// chars: 조합 결과와 남은 문자들, cheos/ga/ggeut: 첫·가·끝별로 추린 낱자들
+	// front_etc/rear_etc: 한글 낱자 앞뒤의 다른 문자들, front_special/rear_special: 앞뒤에서 따로 다룰 기능 글쇠들
+	/** @type {number[]} */
 	var chars=[];
 	var cheos = [], ga = [], ggeut = [];
 	var front_etc = [], rear_etc = [];
 	var front_special = [], rear_special = [];
 
+	// 아래 necessary_backspaces_* 값들은 선언되어 있으나 이 함수에서 쓰이지 않습니다.
 	var necessary_backspaces_cheos=0;
 	var necessary_backspaces_ga=0;
 	var necessary_backspaces_ggeut=0;
@@ -1538,6 +1830,7 @@ function ohiHangeul3_moa(f,e) { // 모아치기 세벌식 자판 처리
 		combination_table = current_layout_info.moachigi_hangeul_combination_table;
 
 		for(i=0;i<combination_table.length;++i) {
+			// 복사본에서 찾은 낱자를 하나씩 빼므로 같은 낱자가 두 번 필요한 규칙도 가릴 수 있습니다.
 			temp_pressed_chars = pressed_chars.slice();
 			for(j=0;j<combination_table[i].phonemes.length;++j) {
 				k=temp_pressed_chars.indexOf(combination_table[i].phonemes[j]);
@@ -1546,6 +1839,7 @@ function ohiHangeul3_moa(f,e) { // 모아치기 세벌식 자판 처리
 			}
 			if(j!=combination_table[i].phonemes.length) continue;
 
+			// 규칙이 맞으면 결과를 담고 그 규칙에 쓰인 글쇠와 낱자를 원래 목록에서 함께 뺍니다.
 			chars.push(combination_table[i].char);
 
 			for(j=0;j<combination_table[i].phonemes.length;++j) {
@@ -1591,6 +1885,7 @@ function ohiHangeul3_moa(f,e) { // 모아치기 세벌식 자판 처리
 		}
 	}
 
+	// 한글 낱자를 첫·가·끝 차례로 이어 붙여 넣고, 그 앞뒤의 다른 문자는 따로 넣습니다.
 	prev_cursor_position = -1;
 	for(i=0;i<front_etc.length;++i) ohiInsert(f,0,front_etc[i]);
 	insert_chars(f,cheos.concat(ga,ggeut));
@@ -1618,9 +1913,15 @@ function ohiHangeul3_moa(f,e) { // 모아치기 세벌식 자판 처리
 	return;
 }
 
+// combination_table_chars: 넣을 문자 부호값들의 배열. 완성형 낱내자는 첫가끝 낱자로 풀어 세벌식 처리부로 넘깁니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {number[]} combination_table_chars 넣을 부호값 목록
+ */
 function insert_chars(f,combination_table_chars) { // 여러 문자를 넣음 (줄임말을 넣을 때)
 	if(typeof combination_table_chars == 'undefined' || typeof combination_table_chars.length == 'undefined') return;
 	var chars = combination_table_chars.slice();
+	// a: 풀어 낸 낱자 배열, i와 j: 반복 첨자 (h, k, l은 이 함수에서 쓰이지 않음)
 	var a=[],h=0,i,j,k,l;
 	abbreviation_processing_state=1;
 
@@ -1642,6 +1943,7 @@ function insert_chars(f,combination_table_chars) { // 여러 문자를 넣음 (�
 	}
 
 	if(chars.length) {
+		// 줄여 넣은 글을 한꺼번에 지울 수 있도록 넣기 전의 가리키개 자리를 기억합니다.
 		prev_cursor_position = f.selectionEnd;
 		if(f.selectionStart!=f.selectionEnd && is_phonemic_writing_input()) {
 			prev_cursor_position += ohiQ[0]+ohiQ[3]+ohiQ[6] ? 1:0;
@@ -1658,6 +1960,13 @@ function insert_chars(f,combination_table_chars) { // 여러 문자를 넣음 (�
 }
 
 
+// 기호 확장 상태를 바꾸거나 확장 배열의 문자를 넣습니다. key는 일반 글쇠값 또는 모아치기 규칙의 -1~-3입니다.
+// 1은 이곳에서 글쇠 처리를 맡았다는 뜻입니다. 모아치기 배열에 들어가는 음수 글쇠값의 갈래는 0을 돌려줍니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function sign_layout_input(f,e,key) {
 	var c, i;
 
@@ -1667,6 +1976,7 @@ function sign_layout_input(f,e,key) {
 	if(!option.enable_sign_ext || !sign_layout) return 0;
 
 	if(Ko_type.substr(0,3)=='3m-') { // 세모이 자판을 비롯한 모아치기 자판
+		// 세모이 등에서 양수 상태값은 1부터 세는 기호 배열 번호이므로 배열 첨자는 1을 뺍니다.
 		if(sign_ext_state>0) {
 		// 기호 확장 배열에서 기호를 넣음
 			c=sign_layout[key-33][sign_ext_state-1];
@@ -1680,6 +1990,7 @@ function sign_layout_input(f,e,key) {
 			show_keyboard_layout();
 			return 0;
 		}
+		// 이어치기에서는 J로 대기 상태(-1)에 들어가고 다음 K, L, :로 배열을 고릅니다.
 		else if(Ko_type=='3m-Semoe' && option.force_normal_typing) {
 			// 세모이 이어치기에서 기호 확장 배열 고르기
 			if(key==74) { // J
@@ -1738,6 +2049,7 @@ function sign_layout_input(f,e,key) {
 			ohiRQ[3]=0;
 			ohiHangeul_backspace(f,e);
 		}
+		// sign_layout_depth: 밑기호와 윗기호 각각의 실제 배열 깊이 (문자가 있는 마지막 층까지 셈)
 		var i,j,k,l,sign_layout_depth=[0,0];
 		if(sign_layout[0].constructor == Array) {
 			for(i=0;i<sign_layout.length;++i) {
@@ -1783,6 +2095,13 @@ function sign_layout_input(f,e,key) {
 }
 
 
+// c1: 새 글쇠에 해당하는 낱자 부호값 (첫가끝 방식은 유니코드, 완성형 방식은 OHI 부호값).
+// -1이면 기호 확장으로 처리하였으므로 일반 낱자 처리를 건너뜁니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {number} key 글쇠값
+ * @param {number} c1 기본 배열에서 얻은 부호값
+ */
 function Sin3_extended_sign_layout_input(f,key,c1) { // 첫소리 ㅇ,ㄱ,ㅈ,ㅂ 자리 글쇠를 쓰는 신세벌식 자판의 확장 배열 기호 넣기
 	var c;
 	var extended_sign_layout = find_extended_sign_layout();
@@ -1818,6 +2137,13 @@ function Sin3_extended_sign_layout_input(f,key,c1) { // 첫소리 ㅇ,ㄱ,ㅈ,�
 }
 
 
+// f: 글상자, key: 글쇠값, c: 넣을 첫가끝 낱자 등의 부호값.
+// 음수 c는 겹홀소리 조합에 쓰는 홀소리임을 알립니다. 낱자 부호값 자체는 양수로 되돌립니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {number} key 글쇠값
+ * @param {number} c 낱자 부호값. 음수이면 겹홀소리 조합용
+ */
 function NFD_hangeul_input(f,key,c) {	// 첫가끝(세벌식) 부호계를 쓰는 요즘한글/옛한글 처리
 	if(c==0x1160 && NFD_stack.phoneme[0]==0x1160) return; // 가운뎃소리 채움 문자가 잇달아 들어오면 처리하지 않음
 
@@ -1898,6 +2224,8 @@ function NFD_hangeul_input(f,key,c) {	// 첫가끝(세벌식) 부호계를 쓰�
 		return;
 	}
 
+	// 가장 나중에 조합한 낱자와 새 낱자가 겹낱자를 이루는지 먼저 살핍니다.
+	/** @type {number} */
 	var combined_phoneme=combine_unicode_NFD_hangeul_phoneme(NFD_stack.combined_phoneme[0],c);
 
 	// 앞 낱자와 조합하지 않는 첫소리나 한글이 아닌 문자가 들어왔을 때에 조합을 끊음
@@ -1946,9 +2274,11 @@ function NFD_hangeul_input(f,key,c) {	// 첫가끝(세벌식) 부호계를 쓰�
 		}
 	}
 
+	// 조합하기 전 낱자와 덧정보는 나중에 들어온 것이 배열 앞에 놓이도록 담습니다.
 	NFD_stack.phoneme.unshift(c);
 	NFD_stack.phoneme_R.unshift(diphthong);
 
+	// 겹낱자가 되면 이미 넣은 글을 지우고 조합 결과로 바꿉니다. 그렇지 않으면 새 낱자를 더합니다.
 	if(combined_phoneme) {
 		NFD_stack.combined_phoneme[0] = combined_phoneme;
 		ohiBackspace(f);
@@ -1975,11 +2305,17 @@ function NFD_hangeul_input(f,key,c) {	// 첫가끝(세벌식) 부호계를 쓰�
 
 	esc_ext_state();
 
+	// 아직 조합 중인 낱내자의 첫가끝 부호 전체를 선택해 둡니다.
 	if(NFD_stack.combined_phoneme.length && unicode_NFD_hangeul_phoneme.indexOf(c)>=0) {
 		ohiSelection(f,NFD_stack.combined_phoneme.length);
 	}
 }
 
+// 한 낱자를 홀로 놓을 때 빠진 첫·가운뎃소리를 채움 문자로 채워 넣습니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {number} c 낱자 부호값
+ */
 function NFD_hangeul_single_phoneme_syllable_input(f,c) {
 	var a=[],i;
 	c=convert_into_unicode_hangeul_phoneme(c);
@@ -2003,10 +2339,23 @@ function NFD_hangeul_single_phoneme_syllable_input(f,c) {
 	initialize_NFD_stack();	
 }
 
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리
+ * @param {number} key 글쇠값
+ * @param {number} c1 기본 배열의 눌린 쪽
+ * @param {number} c2 기본 배열의 반대쪽
+ * @param {number} sub_c1 보조 배열의 눌린 쪽
+ * @param {number} sub_c2 보조 배열의 반대쪽
+ * @param {boolean | number} transform 홀소리와 받침 자리를 맞바꾸어 다루는지
+ * @returns {[number, number, number, number, boolean | number]}
+ */
 function converting_for_special_galmadeuli_layouts(f, e, key, c1, c2, sub_c1, sub_c2, transform) {
 // 신세벌식 자판과 다른 배열 방식을 쓰는 갈마들이 세벌식 자판을 신세벌식 자판의 배열 방식으로 처리할 수 있게 문자값 자리를 바꿈
 
+	// c1, c2: 눌린 글쇠와 반대쪽 윗글/아랫글의 기본 배열값, sub_c1, sub_c2: 그에 맞는 보조 배열값.
 	var layout = find_current_layout();
+	// 이 함수 안의 a 및 반환 배열 차례는 [c1, sub_c1, c2, sub_c2]입니다. 끝에 transform을 덧붙여 돌려줍니다.
 	var a = [c1, sub_c1, c2, sub_c2];
 	var _c1, _c2;
 
@@ -2110,6 +2459,12 @@ function converting_for_special_galmadeuli_layouts(f, e, key, c1, c2, sub_c1, su
 	return [a[0], a[1], a[2], a[3], transform];
 }
 
+// 완성형 조합에서 기본·보조 배열과 현재 낱내자 상태를 보고 넣을 낱자를 고릅니다. -1이면 이곳에서 처리를 마친 경우입니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function NFC_galmadeuli_preprocess(f,e,key) { // 유니코드 완성형 한글 부호계를 쓸 때의 갈마들이 세벌식 자판 전처리 함수 (신세벌식 자판을 기준으로 함)
 	var a, i, j, c, c1, c2, sub_c1, sub_c2;
 	var sublayout = find_sublayout();
@@ -2120,6 +2475,7 @@ function NFC_galmadeuli_preprocess(f,e,key) { // 유니코드 완성형 한글 �
 	c1 = a[0], c2 = a[1], sub_c1 = a[2], sub_c2 = a[3];
 	if(Sin3_extended_sign_layout_input(f,key,convert_into_ohi_hangeul_phoneme(c1))==-1) return -1;
 	a = converting_for_special_galmadeuli_layouts(f, e, key, c1, c2, sub_c1, sub_c2, transform);
+	// 배열별 예외를 반영한 반환 배열은 find_galmadeuli_chars의 반환 차례와 다르므로 꺼내는 차례에 유의합니다.
 	c1 = a[0], sub_c1 = a[1], c2 = a[2], sub_c2 = a[3], transform = a[4];
 
 	c = c1;
@@ -2205,6 +2561,12 @@ function NFC_galmadeuli_preprocess(f,e,key) { // 유니코드 완성형 한글 �
 	return c;
 }
 
+// 첫가끝 조합의 낱자 고르기. 완성형 조합용 ohiQ 대신 주로 NFD_stack의 상태를 살핍니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function NFD_galmadeuli_preprocess(f,e,key) { // 첫가끝 조합형을 쓸 때의 갈마들이 세벌식 자판 전처리 함수 (신세벌식 자판을 기준으로 함)
 	var a, i, j, c, c1, c2, sub_c1, sub_c2;
 	var sublayout = find_sublayout();
@@ -2282,6 +2644,11 @@ function NFD_galmadeuli_preprocess(f,e,key) { // 첫가끝 조합형을 쓸 때�
 	return c;
 }
 
+// 타자기 배열의 받침 글쇠 상태 및 받침이 붙지 않는 홀소리 등 타자기 고유의 입력 규칙을 반영합니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {number} key 글쇠값
+ */
 function hangeul_typewriter(f,key) { // 타자기 자판
 	var layout = find_current_layout();
 
@@ -2343,6 +2710,7 @@ function hangeul_typewriter(f,key) { // 타자기 자판
 }
 
 
+// 현재 배열 정보와 자판 이름을 보고 갈마들이 자판인지 가립니다.
 function is_galmadeuli_input() {
 	var type_name = current_layout_info.type_name;
 	if(type_name.substr(0,2)=='2-') {
@@ -2361,6 +2729,9 @@ function is_galmadeuli_input() {
 	return false;
 }
 
+/**
+ * @param {number} key 글쇠값
+ */
 function can_be_galmadeuli_key(key) { // 첫가끝 갈마들이를 할 수 있게 아랫글/윗글 자리에 한글 낱자가 들어간 글쇠인지
 	shift_key = shift_table[key-33];
 	var mainlayout = find_mainlayout();
@@ -2379,12 +2750,16 @@ function can_be_galmadeuli_key(key) { // 첫가끝 갈마들이를 할 수 있�
 	return false;
 }
 
+// 3m-으로 시작하는 자판에서 이어치기 강제 설정이 꺼져 있을 때만 모아치기로 판정합니다.
 function is_moachigi_input() {
 	if(current_layout_info.type_name.substr(0,3)!='3m-') return false;
 	if(option.force_normal_typing) return false;
 	return true;
 }
 
+/**
+ * @param {number} key 글쇠값
+ */
 function is_left_key(key) {
 	if(key<0x21 || key>0x7E) return false;
 	if(key==0x21) return true;
@@ -2413,10 +2788,16 @@ function is_left_key(key) {
 	if(key==0x7E) return true;
 }
 
+/**
+ * @param {number} key 글쇠값
+ */
 function is_right_key(key) {
 	if(key<0x21 || key>0x7E) return false;
 	return !is_left_key(key);
 }
+/**
+ * @param {number} key 글쇠값
+ */
 function with_shift_key(key) {	// 윗글쇠를 누르고 친 글쇠인지
 	if(key<0x21) return false;
 	else if(key<=0x26) return true;
@@ -2447,6 +2828,13 @@ function is_phonemic_writing_input() {
 }
 
 
+// u, d: 화상 배열표의 윗글과 아랫글을 담을 행 배열, t: ASCII 33~126 차례의 문자 배열.
+// 글쇠값 차례로 늘어선 94개 문자를 쿼티 글쇠의 행과 열 차례로 옮겨 담습니다.
+/**
+ * @param {OHIKeyLabelTable} u 윗글 행 배열
+ * @param {OHIKeyLabelTable} d 아랫글 행 배열
+ * @param {OHIKeyLabels} t 부호값 또는 문자 목록
+ */
 function push_to_key_table(u,d,t) {
 	u.push(
 		[t[93],t[0],t[31],t[2],t[3],t[4],t[61],t[5],t[9],t[7],t[8],t[62],t[10],''],
@@ -2460,6 +2848,12 @@ function push_to_key_table(u,d,t) {
 		['',t[89],t[87],t[66],t[85],t[65],t[77],t[76],t[11],t[13],t[14]],'');
 }
 
+// b: 기본 배열. 갈마들이 값이 배열로 되어 있으면 첫 원소를 써서 화상 배열표를 만듭니다.
+/**
+ * @param {OHIKeyLabelTable} u 윗글 행 배열
+ * @param {OHIKeyLabelTable} d 아랫글 행 배열
+ * @param {OHIKeyLayout} b 기본 배열
+ */
 function push_layout_to_key_table(u,d,b) {
 	var a,c,bas=[];
 	for(var i=0;i<94;++i) {
@@ -2471,6 +2865,12 @@ function push_layout_to_key_table(u,d,b) {
 	push_to_key_table(u,d,bas);
 }
 
+// 한글 확장 상태값에 해당하는 문자들만 골라 화상 배열표의 행과 열 차례로 바꿉니다.
+/**
+ * @param {OHIKeyLabelTable} u 윗글 행 배열
+ * @param {OHIKeyLabelTable} d 아랫글 행 배열
+ * @param {OHIExtendedLayout} ext_layout 한글 확장 배열
+ */
 function push_extended_hangeul_layout_to_key_table(u,d,ext_layout) {
 	var i,c,str,charCode;
 	var ext=[];
@@ -2490,6 +2890,12 @@ function push_extended_hangeul_layout_to_key_table(u,d,ext_layout) {
 	push_to_key_table(u,d,ext);
 }
 
+// e: 기호 확장 배열. j는 현재 기호 확장 상태의 층을 0부터 세는 첨자로 바꾼 값입니다.
+/**
+ * @param {OHIKeyLabelTable} u 윗글 행 배열
+ * @param {OHIKeyLabelTable} d 아랫글 행 배열
+ * @param {OHIExtendedLayout} e 기호 확장 배열
+ */
 function push_extended_sign_layout_to_key_table(u,d,e) {
 	var ext=[], c, i, j=(sign_ext_state-1)%10;
 	if(j>=0) {
@@ -2525,6 +2931,15 @@ function push_extended_sign_layout_to_key_table(u,d,e) {
 	push_to_key_table(u,d,ext);
 }
 
+// ue/de: 영문 윗글/아랫글 행 배열, uh/dh: 한글 윗글/아랫글 행 배열.
+// 보조 배열의 문자가 기본 배열에 이미 보이는 글과 겹치지 않도록 영문 표시 자리를 활용합니다.
+/**
+ * @param {OHIKeyLabelTable} ue 영문 윗글
+ * @param {OHIKeyLabelTable} de 영문 아랫글
+ * @param {OHIKeyLabelTable} uh 한글 윗글
+ * @param {OHIKeyLabelTable} dh 한글 아랫글
+ * @param {number[]} sublayout 보조 배열
+ */
 function insert_sublayout_table(ue, de, uh, dh, sublayout) {
 	var u=[], d=[], sub=[], c, i, j, ds, us;
 
@@ -2557,11 +2972,17 @@ function insert_sublayout_table(ue, de, uh, dh, sublayout) {
 	}
 }
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function show_ohiStatusBar(op) {	// 보람줄(상태 표시줄) 보이기/감추기
 	if(typeof op != 'undefined' && (op=='off' || op=='0' || !op)) ohiStatus.style.display='none';
 	else ohiStatus.style.display='block';
 }
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function ohiChange_enable_double_final_ext(op) { // 겹받침 확장 기능 켜기/끄기
 	if(op===undefined || op==1) option.enable_double_final_ext=1;
 	else option.enable_double_final_ext=0;
@@ -2569,6 +2990,9 @@ function ohiChange_enable_double_final_ext(op) { // 겹받침 확장 기능 켜�
 }
 
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function show_NCR_text(op) { // 문자를 유니코드 부호값과 맞대어 나타내기 (Numeric Character Reference)
 	if(typeof op != 'undefined') {
 		if(op) converting_option.NCR_text=1;
@@ -2626,6 +3050,9 @@ function show_NCR_text(op) { // 문자를 유니코드 부호값과 맞대어 �
 	t.innerHTML = ref_text;
 }
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function show_direct_typing_text(op) { // 쿼티 글쇠 배열 기준으로 문자열을 글쇠값들로 바꾸기
 	if(typeof op != 'undefined') {
 		if(op) converting_option.direct_typing_text=1;
@@ -2693,6 +3120,7 @@ function show_direct_typing_text(op) { // 쿼티 글쇠 배열 기준으로 문�
 	}
 
 	var conv_text='';
+	/** @type {OHIKeyTableEntry[]} */
 	var key_table = [];
 	making_key_table(key_table);
 	
@@ -2704,6 +3132,9 @@ function show_direct_typing_text(op) { // 쿼티 글쇠 배열 기준으로 문�
 }
 
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function show_reverse_direct_typing_text(op) { // 쿼티 글쇠 배열 기준으로 글쇠값들을 문자열로 바꾸기
 	if(typeof op != 'undefined') {
 		if(op) converting_option.reverse_direct_typing_text=1;
@@ -2769,12 +3200,17 @@ function show_reverse_direct_typing_text(op) { // 쿼티 글쇠 배열 기준으
 	document.body.removeChild(temp_t);
 }
 
+/**
+ * @param {OHIKeyTableEntry[]} table 글쇠 대응표를 담을 배열
+ */
 function making_key_table(table) { // 글쇠 기준 문자 변환에 쓰이는 부호값-글쇠 대응표 만들기
+	// table: 부호값(code)마다 대응하는 글쇠값 목록(keys)을 담는 배열. 호출한 곳에서 넘겨준 배열을 채웁니다.
 	var i, j, k, key, keys = [];
 	var layout_info = find_current_layout_info();
 	var mainlayout = find_mainlayout();
 	var sublayout = find_sublayout();
 	var combination_table = find_combination_table();
+	/** @type {number[]} */
 	var single_phonemes = [];
 
 	for(i=0x21; i<0x7E; ++i) { // 아스키 영역 일반 문자
@@ -2809,6 +3245,7 @@ function making_key_table(table) { // 글쇠 기준 문자 변환에 쓰이는 �
 		if(j==compatibility_hol_to_NFD_hothol[i].length && keys.length) table.push({code: compatibility_modern_hol[i], keys: keys}); // 끝소리로 넣음		
 	}
 
+	// 기본·보조 배열과 첫가끝 낱자 표에서 글쇠 대응표를 만들 대상 부호값을 모읍니다.
 	codes = unicode_NFD_hangeul_phoneme.concat(mainlayout, sublayout);
 	if(mainlayout.indexOf(-1)>=0 && typeof layout_info.extended_hangeul_layout != 'undefined') // 한글 확장 배열
 		for(i=0;i<layout_info.extended_hangeul_layout.length;++i)
@@ -2867,6 +3304,7 @@ function making_key_table(table) { // 글쇠 기준 문자 변환에 쓰이는 �
 
 	for(i=0; i<codes.length; ++i) { // 낱자 조합 규칙
 		if(converting_option.combination_table_reflection && combination_table.length && unicode_NFD_hangeul_phoneme.indexOf(codes[i])>=0) {
+			// 조합 규칙을 따라 겹낱자를 풀고 그 낱자들을 칠 글쇠 차례를 찾습니다.
 			var divided_phonemes = [codes[i]];
 			do {
 				for(j=0,k=0;j<combination_table.length;++j) {
@@ -2887,8 +3325,14 @@ function making_key_table(table) { // 글쇠 기준 문자 변환에 쓰이는 �
 	}
 }
 
+// single_phonemes: 차례대로 칠 낱자들. 배열과 설정을 살펴 쿼티 기준 글쇠값들의 배열을 돌려줍니다.
+/**
+ * @param {number[]} single_phonemes 칠 낱자 목록
+ * @returns {number[]}
+ */
 function find_direct_typing_keys(single_phonemes) {
 	var i, j, k, key;
+	/** @type {number[]} */
 	var keys = [];
 	var layout_info = find_current_layout_info();
 	var mainlayout = find_mainlayout();
@@ -2937,9 +3381,18 @@ function find_direct_typing_keys(single_phonemes) {
 	return keys;
 }
 
+// key_table: 부호값과 글쇠값의 대응표, text: 바꿀 글, nth: 지금 바꿀 문자의 자리.
+/**
+ * @param {OHIKeyTableEntry[]} key_table 글쇠 대응표
+ * @param {string} text 바꿀 글
+ * @param {number} nth 문자 자리
+ * @returns {string}
+ */
 function convert_into_direct_typing_chars(key_table, text, nth) { // 글에 들어간 문자를 쿼티 기준으로 글쇠 자리에 있는 문자로 바꿈 (글쇠 기준 문자 변환)
 	var layout_info = find_current_layout_info();
 	var i, j, r, key;
+	// char_codes: 앞·지금·뒤 문자의 부호값, codes: 각 문자를 첫가끝 낱자로 풀어 담을 배열
+	// r: 대응표에서 찾은 규칙, str: 바꾸어 얻은 글쇠값 문자열
 	var char_codes = [], codes = [];
 	var str = '';
 
@@ -3017,6 +3470,12 @@ function convert_into_direct_typing_chars(key_table, text, nth) { // 글에 들�
 	return str;
 }
 
+// 쿼티 글쇠값으로 적힌 글의 한 글자를 현재 한글 자판으로 다시 쳐서 글상자 f에 넣습니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {string} text 글쇠값으로 된 글
+ * @param {number} nth 문자 자리
+ */
 function convert_into_reverse_direct_typing_chars(f, text, nth) { // 글에 들어간 문자를 쿼티 기준으로 글쇠 자리에 있는 문자로 바꿈 (글쇠 기준 문자 변환)
 	var key = text.charCodeAt(nth);
 
@@ -3032,6 +3491,12 @@ function convert_into_reverse_direct_typing_chars(f, text, nth) { // 글에 들�
 	}
 }
 
+// opt_name: option의 항목 이름, footer: 눌렀을 때 뒤이어 실행할 코드가 든 문자열
+/**
+ * @param {HTMLElement} opts 선택 항목을 붙일 곳
+ * @param {string} opt_name 설정 이름
+ * @param {string} footer 뒤에 이어 붙일 코드
+ */
 function add_option(opts, opt_name, footer) {
 	var opt = document.getElementById('option_' + opt_name);
 	eval('var opt_var = option.' + opt_name);
@@ -3041,6 +3506,7 @@ function add_option(opts, opt_name, footer) {
 	return opt;
 }
 
+// 현재 자판과 설정에 따라 누리보기에서 보일 선택 항목을 마련하고 보이거나 감춥니다.
 function show_options() {
 	var i;
 	var KE=ohi_KE, opt, opt_name, ft;
@@ -3197,6 +3663,11 @@ function show_options() {
 	}
 }
 
+// type을 생략하면 현재 자판을 보이며, 1이면 배열표를 보이게 하고 거짓값이면 감춥니다.
+/**
+ * @param {OHISwitch} [type] 자판 이름 또는 배열표 표시 상태
+ * @returns {false | void} 배열표가 없거나 감추면 false, 그 밖에는 돌려주는 값 없음
+ */
 function show_keyboard_layout(type) {
 	var e=window.event;
 	var rows = document.getElementById('keyboardLayout');
@@ -3235,6 +3706,7 @@ function show_keyboard_layout(type) {
 
 	var layout_info = find_current_layout_info();
 
+	// ue, de: 영문 윗글·아랫글, uh, dh: 한글 윗글·아랫글의 행 배열. l은 글쇠값 차례로 바꾼 문자 목록입니다.
 	var layout=[], ue=[], de=[], uh=[], dh=[], l=[];
 	layout = find_layout_info('En', En_type).layout; // 영문 자판 배열
 
@@ -3291,6 +3763,7 @@ function show_keyboard_layout(type) {
 
 	var charCode, charCode_uh;
 
+ 	// i, j: 화상 배열표의 행과 열 첨자, k: 행을 넘어 이어서 세는 글쇠 번호 (dkey/ukey와 맞댐)
  	for(i=0, k=-1; ue[i]; i++) {
 		var row = document.getElementById('row'+i);
 		for(j=0; ue[i][j]; j++) {
@@ -3542,6 +4015,9 @@ function checkCapsLock() {
   return false;
 }
 
+/**
+ * @param {HTMLElement | HTMLInputTarget} text 베낄 글이 든 요소
+ */
 function copyToClipboard(text) {
 	var t;
   if(typeof text.value == 'undefined') {
@@ -3558,6 +4034,7 @@ function copyToClipboard(text) {
 }
 
 
+// 현재 자판을 바탕으로 입력기를 마련하고 보람줄을 갱신합니다. 처음 보람줄을 붙일 때 글쇠 일거리 다루개도 등록합니다.
 function ohiStart() {
 	// 입력 기능이나 자판을 다시 마련하기 전에 부분 모아치기 입력을 확정합니다.
 	if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord();
@@ -3713,6 +4190,7 @@ function show_keyboard_layout_info() {
 	}
 }
 
+// 현재 자판과 설정에 맞는 조합표를 돌려줍니다. 편의 조합은 기본 조합표보다 앞에 놓습니다.
 function find_combination_table() { // 낱자 조합 규칙 정보 찾기
 	var i;
 	var combination_table = [];
@@ -3743,6 +4221,11 @@ function find_combination_table() { // 낱자 조합 규칙 정보 찾기
 	return combination_table;
 }
 
+// 반환 차례는 [c1, c2, sub_c1, sub_c2]입니다. c1은 실제 눌린 쪽의 값이며 반드시 아랫글인 것은 아닙니다.
+/**
+ * @param {number} key 글쇠값
+ * @returns {[number, number, number, number]}
+ */
 function find_galmadeuli_chars(key) {
 
 // 쿼티 자판 기준으로 p 자리 글쇠가 눌렸다면 
@@ -3777,6 +4260,7 @@ function find_galmadeuli_chars(key) {
 	return [c1, c2, sub_c1, sub_c2];
 }
 
+// 한글 아닌 문자 조합표를 복사하고 옛한글 상태이면 옛한글 기호 조합 규칙을 더합니다.
 function find_character_combination_table() {
 	var layout_info = find_current_layout_info();
 	var character_combination_table = [];
@@ -3787,6 +4271,12 @@ function find_character_combination_table() {
 	return character_combination_table;
 }
 
+// 기본·추가·시험 자판 목록에서 한·영 종류와 자판 이름이 맞는 정보를 찾습니다. 없으면 false를 돌려줍니다.
+/**
+ * @param {string} KE 한·영 종류
+ * @param {string} type_name 자판 이름
+ * @returns {OHILayoutInfo | false}
+ */
 function find_layout_info(KE, type_name) {
 	if(typeof type_name == 'undefined' || !type_name) return false;
 	var i,j;
@@ -3800,6 +4290,9 @@ function find_layout_info(KE, type_name) {
 	return false;
 }
 
+// 현재 쓰는 배열을 돌려주되 Caps Lock에 대응하는 배열이 있으면 그것을 고릅니다.
+// 자판 정보가 마련된 뒤에 부르는 함수입니다.
+/** @returns {OHIKeyLayout} */
 function find_current_layout() {
 	var layout_info = find_current_layout_info();
 	var layout = layout_info.layout;
@@ -3807,12 +4300,17 @@ function find_current_layout() {
 	return layout;
 }
 
+// 현재 선택한 자판의 정보에서 옛한글용 자판으로 이어지는 이름이 있으면 그 정보를 찾아 돌려줍니다.
 function find_current_layout_info() {
 	var layout_info = current_layout_info;
 	if(is_old_hangeul_input() && typeof current_layout_info.old_hangeul_layout_type_name != 'undefined') layout_info = find_layout_info('Ko', current_layout_info.old_hangeul_layout_type_name);
 	return layout_info;
 }
 
+// 기호 확장 배열을 찾습니다. 해당하는 기본 기호 확장 배열이 없으면 반환값은 null입니다.
+/**
+ * @param {OHILayoutInfo} [layout_info] 생략하면 현재 자판의 정보를 씀
+ */
 function find_extended_sign_layout(layout_info) {
 	if(typeof layout_info == 'undefined') layout_info = find_current_layout_info();
 	var sign_layout = null;
@@ -3826,6 +4324,10 @@ function find_extended_sign_layout(layout_info) {
 	return sign_layout;
 }
 
+// 배열값이 두 원소짜리 배열인 경우 첫 원소만 추려 기본 배열을 만듭니다.
+/**
+ * @param {OHILayoutInfo} [layout_info] 생략하면 현재 자판의 정보를 씀
+ */
 function find_mainlayout(layout_info) {
 	var layout = typeof layout_info == 'undefined' ? find_current_layout() : layout_info.layout;
 	var mainlayout = [];
@@ -3836,6 +4338,10 @@ function find_mainlayout(layout_info) {
 	return mainlayout;
 }
 
+// 따로 있는 보조 배열 또는 각 글쇠 배열의 둘째 원소를 모아 보조 배열을 얻습니다.
+/**
+ * @param {OHILayoutInfo} [layout_info] 생략하면 현재 자판의 정보를 씀
+ */
 function find_sublayout(layout_info) {
 	if(typeof layout_info == 'undefined') layout_info = find_current_layout_info();
 	var sublayout = [];
@@ -3853,6 +4359,11 @@ function find_sublayout(layout_info) {
 }
 
 
+// KE: 한·영 종류, type_name: 바꿀 자판 이름. 새 배열을 찾기 전에 모아 둔 입력과 한글 조합을 처리합니다.
+/**
+ * @param {string} KE 한·영 종류
+ * @param {string} type_name 바꿀 자판 이름
+ */
 function ohiChange(KE, type_name) {
 	var f=document.getElementById('inputText');
 	if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord(f);
@@ -3864,6 +4375,7 @@ function ohiChange(KE, type_name) {
 		if(pressed_keys.length) ohiHangeul3_moa(f,0);
 	}
 
+	// 앞 자판에서 모아 둔 글쇠와 바로 앞 줄임말 조건을 비웁니다.
 	pressed_keys=[];
 	pressing_keys=0;
 	prev_pressed_keys=[];
@@ -3893,7 +4405,11 @@ function ohiChange(KE, type_name) {
 	}
 }
 
+/**
+ * @param {string} type En, Ko, K2 또는 K3
+ */
 function ohiChange_between_same_type(type) {	// 같은 한·영 종류의 배열 바꾸기 (Ko는 주요 배열만 간추림)
+	// i: 자판 목록 첨자, j: 현재 자판을 찾은 자리. 목록의 끝에서는 처음으로 돌아갑니다.
 	var i,j=-1;
 	var En_type_array = ['QWERTY','Dvorak','Colemak','Workman'];
 	var Ko_type_array = ['2-KSX5002','2-KPS9256','2-Dujule','3-90','3-91','Sin3-P2','Sin3-Cham','3m-Semoe','3-P3'];
@@ -3935,6 +4451,9 @@ function ohiChange_between_same_type(type) {	// 같은 한·영 종류의 배열
 	ohiChange('Ko',Ko_type);
 }
 
+/**
+ * @param {string} [type] 바꿀 종류. 생략하면 다음 종류로 바꿈
+ */
 function ohiChange_KE(type) {	// 한·영 상태 바꾸기
 	var KE = ohi_KE;
 
@@ -3946,6 +4465,9 @@ function ohiChange_KE(type) {	// 한·영 상태 바꾸기
 	else if(type=='Ko') ohiChange('Ko',Ko_type);
 }
 
+/**
+ * @param {string} [type] 바꿀 종류. 생략하면 다음 종류로 바꿈
+ */
 function ohiChange_KBD_type(type) {	// 기준 자판 바꾸기
 	if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord();
 	if(type === undefined || !type) {
@@ -3959,6 +4481,9 @@ function ohiChange_KBD_type(type) {	// 기준 자판 바꾸기
 	show_keyboard_layout(option.show_layout);
 }
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function ohiChange_enable_sign_ext(op) {
 	if(op=='off' || op=='0') option.enable_sign_ext = 0;
 	else option.enable_sign_ext = 1;
@@ -3968,6 +4493,9 @@ function ohiChange_enable_sign_ext(op) {
 	if(checkbox && typeof checkbox[0].checked != 'undefined') checkbox[0].checked = option.enable_sign_ext;
 }
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function ohiChange_enable_old_hangeul_input(op) {
 	if(typeof op != 'undefined') {
 		if(op=='off' || op=='0') option.enable_old_hangeul_input = 0;
@@ -3978,12 +4506,18 @@ function ohiChange_enable_old_hangeul_input(op) {
 	show_keyboard_layout(option.show_layout);
 }
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function ohiChange_enable_phonemic_writing(op) {
 	if(op=='off' || op=='0') option.enable_phonemic_writing = 0;
 	else option.enable_phonemic_writing = 1;
 	show_keyboard_layout(option.show_layout);
 }
 
+/**
+ * @param {OHISwitch} [op] 설정값 (생략할 때의 동작은 함수마다 다름)
+ */
 function ohiChange_force_normal_typing(op) { // 모아치기 자판을 이어치기(일반 타자법)으로 치게 하기
 	if(typeof op != 'undefined' && op=='off' || op=='0') option.force_normal_typing = 0;
 	else option.force_normal_typing = 1;
@@ -4001,6 +4535,12 @@ function Sin3_hangeul_extension() {
 	}
 }
 
+// 기준 자판에 맞추어 글쇠값을 쿼티 자리로 바꾸고, 영문 쿼티가 아니면 윗글쇠 상태에 맞추어 영문 대소문자를 바로잡습니다.
+/**
+ * @param {KeyboardEvent} e 글쇠 일거리
+ * @param {number} key 바꿀 글쇠값
+ * @returns {number}
+ */
 function ohiKeyswap(e,key) {
 	var KE=ohi_KE;
 	var i=0, swaped=[];
@@ -4018,6 +4558,10 @@ function ohiKeyswap(e,key) {
 	return key;
 }
 
+// 문자를 치는 일거리 처리부. 기능 글쇠의 자판 바꾸기는 ohiKeydown에서 따로 다룹니다.
+/**
+ * @param {KeyboardEvent} e 글쇠 일거리
+ */
 function ohiKeypress(e) {
 	if(onkeypress_skip) return false;
 	
@@ -4032,6 +4576,7 @@ function ohiKeypress(e) {
 		return false;
 	}
 	
+	// i: 지금 완성형 또는 첫가끝 한글 조합이 남아 있는지를 나타내는 값 (0 또는 1)
 	var i = ohiQ[0]+ohiQ[3]+ohiQ[6] || NFD_stack.phoneme.length ? 1 : 0;
 	if(f.type=='text' && n=='INPUT' || n=='TEXTAREA') {
 		if((key==13 || key==32) && !e.ctrlKey && !e.shiftKey && !e.altKey) { // 줄바꾸개(enter)와 사이띄개(space bar)
@@ -4070,6 +4615,10 @@ function ohiKeypress(e) {
 	return false;
 }
 
+// 글쇠를 누를 때 기능 글쇠, 확장 입력, 조합 끊기 등을 다룹니다. 일반 문자 입력은 ohiKeypress에도 이어집니다.
+/**
+ * @param {KeyboardEvent} e 글쇠 일거리
+ */
 function ohiKeydown(e) {
 	if(option.turn_off_OHI) {
 		show_NCR_text();
@@ -4084,6 +4633,7 @@ function ohiKeydown(e) {
 
 	if(f.type=='text' && n=='INPUT' || n=='TEXTAREA') {
 		// 자판을 바꾸는 기능 글쇠는 누를 때 처리함
+		// shortcut은 처리할 기능의 부호값입니다. 13은 기준 자판, 32는 한·영 전환, 49~51은 자판 종류 바꾸기에 씁니다.
 		var shortcut=0;
 		if(!e.isComposing && e.keyCode!=229 && !e.metaKey && !(e.getModifierState && e.getModifierState('AltGraph'))) {
 			if(!e.altKey && e.ctrlKey && !e.shiftKey && e.key=='Enter') shortcut=13;
@@ -4095,6 +4645,7 @@ function ohiKeydown(e) {
 		}
 		if(shortcut) {
 			if(typeof OHIExtension != 'undefined') OHIExtension.flushPartialChord();
+			// 글쇠를 오래 눌러 반복 일거리가 들어와도 자판은 한 번만 바꿉니다.
 			if(!e.repeat) {
 				if(shortcut==13) ohiChange_KBD_type(); // 기준 자판 바꾸기
 				else if(shortcut==32) ohiChange_KE(); // 한·영 상태 바꾸기
@@ -4111,6 +4662,7 @@ function ohiKeydown(e) {
 					else ohiChange_between_same_type('K3');
 				}
 			}
+			// 일반 문자 입력으로 다시 처리되지 않도록 keypress를 건너뛰고 누리보기의 기본 동작을 막습니다.
 			tableKey_press(shortcut);
 			onkeypress_skip=1;
 			if(e.preventDefault) e.preventDefault();
@@ -4240,6 +4792,10 @@ function ohiKeydown(e) {
 	if(f.id=='inputText') {show_NCR_text();show_direct_typing_text();}
 }
 
+// 글쇠를 뗄 때 모아 둔 글쇠를 처리하거나 확장 모듈의 부분 모아치기 상태를 정리합니다.
+/**
+ * @param {KeyboardEvent} e 글쇠 일거리
+ */
 function ohiKeyup(e) {
 	var e=e||window.event, f=e.target||e.srcElement;
 	var KE=ohi_KE.substr(0,2);
@@ -4252,6 +4808,7 @@ function ohiKeyup(e) {
 			(!(96<=e.keyCode && e.keyCode<=111) && // 오른쪽 숫자판 글쇠가 아닐 때
 				/^[!-~]$/.test(e.key)); // 일반 글쇠일 때 (ASCII 33~126)
 
+		// 윗글쇠를 떼거나 모아치기 글쇠 수가 0이 되면 모아 둔 글쇠를 처리하고 다음 입력을 위해 비웁니다.
 		if(e.keyCode==16 || moa_key && pressing_keys && !--pressing_keys) { // 윗글쇠(16)를 떼었거나 모든 글쇠를 뗌
 			while(pressed_keys.indexOf(16)>=0) pressed_keys.splice(pressed_keys.indexOf(16),1);
 			if(pressed_keys.length) ohiHangeul3_moa(f,e);
@@ -4281,6 +4838,12 @@ function ohiKeyup(e) {
 	if(f.id=='inputText') {show_NCR_text();show_direct_typing_text();}
 }
 
+// 아직 처리하지 않은 글쇠값과 눌린 글쇠 수를 쌓습니다. 같은 글쇠가 거듭 들어오면 앞의 모아치기를 처리한 뒤 이어 넣습니다.
+/**
+ * @param {HTMLInputTarget} f 글상자
+ * @param {OHIInputEvent} e 일거리 또는 0
+ * @param {number} key 글쇠값 (세벌식 처리부는 낱자 부호값도 받음)
+ */
 function pressed_key_accumulation(f,e,key) {
 	if(pressed_keys.length && pressed_keys[pressed_keys.length-1]==key) {
 	// 한 글쇠가 오래 눌려서 같은 문자가 들어왔을 때
@@ -4300,16 +4863,23 @@ function pressed_key_accumulation(f,e,key) {
 	}
 }
 
+/**
+ * @param {HTMLElement | null} [f] 가리키개를 옮길 요소
+ */
 function inputText_focus(f) {
 	if(typeof f =='undefined') f=document.getElementById('inputText');
 	if(f) f.focus();
 }
 
+/**
+ * @param {number | string} r 글상자의 줄 수
+ */
 function inputText_rows(r) { // 글상자(textarea)의 줄 수를 바꿈
 	var f=document.getElementById('inputText');
 	if(f) f.rows=r.toString();
 }
 
+// 주소의 물음표 뒤에 지정된 항목들을 읽어 자판 및 입력 설정을 바꿉니다. TF는 설정을 켜고 끄는 데 쓰는 값입니다.
 function url_query() {
 	var field, value, TF;
 	var address = unescape(location.href);
@@ -4382,6 +4952,10 @@ function url_query() {
 	}
 }
 
+// 실제 글을 넣지 않고 화상 배열표의 눌림 표시를 갱신합니다. 글쇠 일거리의 값 일부를 문자 부호값으로 맞춥니다.
+/**
+ * @param {number} key 글쇠값
+ */
 function tableKey_press(key) {
 	var shift1 = document.getElementById('key41');
 	var shift2 = document.getElementById('key52');
@@ -4423,6 +4997,13 @@ function tableKey_press(key) {
 	}
 }
 
+// key_num: 화상 배열표 글쇠 번호, dk/uk: 해당 글쇠의 아랫글/윗글 부호값. 음수는 자판 바꾸기 단추에 씁니다.
+/**
+ * @param {MouseEvent} e 화상 글쇠를 누른 일거리
+ * @param {number} key_num 화상 글쇠 번호
+ * @param {number} dk 아랫글 부호값
+ * @param {number} uk 윗글 부호값
+ */
 function tableKey_clicked(e, key_num, dk, uk){
 	inputText_focus();
 	var key, f = document.getElementById('inputText');
@@ -4493,6 +5074,7 @@ function tableKey_clicked(e, key_num, dk, uk){
 		inputText_focus();
 	}
 
+	// 윗글쇠와 윗글 고정 상태를 더한 값이 홀수이면 윗글을, 짝수이면 아랫글을 고릅니다.
 	key = (shift_click+shiftlock_click)%2 ? uk : dk;
 	if(ohi_KE.substr(0,2)=='En' && key>32 && key<127) ohiRoman(f,0,key);
 	if(ohi_KE.substr(0,2)!='En' && key>32 && key<127) {
@@ -4515,9 +5097,12 @@ function tableKey_clicked(e, key_num, dk, uk){
 	shift2.style.backgroundColor = '';
 }
 
+// OHI 안쪽 낱자 부호표, 유니코드 첫가끝·호환·반각 부호표 및 화상 배열표에 쓰는 글쇠값 표를 마련합니다.
 function ohi_code_tables() {
 	var i;
 
+	// 요즘한글 낱자 부호표는 유니코드 첫·가·끝 낱자 차례와 나란히 놓여 있습니다.
+	// OHI 낱자값은 유니코드 부호값이나 유니코드 완성형 낱자 첨자와 같지 않습니다.
 	ohi_cheos = [/*ㄱ*/128,/*ㄲ*/129,/*ㄴ*/131,/*ㄷ*/134,/*ㄸ*/135,/*ㄹ*/136,/*ㅁ*/144,/*ㅂ*/145,/*ㅃ*/146,/*ㅅ*/148,/*ㅆ*/149,/*ㅇ*/150,/*ㅈ*/151,/*ㅉ*/152,/*ㅊ*/153,/*ㅋ*/154,/*ㅌ*/155,/*ㅍ*/156,/*ㅎ*/157];
 	ohi_ga = [/*ㅏ*/66,/*ㅐ*/67,/*ㅑ*/68,/*ㅒ*/69,/*ㅓ*/70,/*ㅔ*/71,/*ㅕ*/72,/*ㅖ*/73,/*ㅗ*/74,/*ㅘ*/75,/*ㅙ*/76,/*ㅚ*/77,/*ㅛ*/78,/*ㅜ*/79,/*ㅝ*/80,/*ㅞ*/81,/*ㅟ*/82,/*ㅠ*/83,/*ㅡ*/84,/*ㅢ*/85,/*ㅣ*/86];
 	ohi_ggeut = [/*ㄱ*/1,/*ㄲ*/2,/*ㄳ*/3,/*ㄴ*/4,/*ㄵ*/5,/*ㄶ*/6,/*ㄷ*/7,/*ㄹ*/9,/*ㄺ*/10,/*ㄻ*/11,/*ㄼ*/12,/*ㄽ*/13,/*ㄾ*/14,/*ㄿ*/15,/*ㅀ*/16,
