@@ -4677,9 +4677,11 @@ function ohiKeydown(e) {
 		}
 		// 부분 모아치기로 모아 둔 글쇠를 특수 글쇠 처리보다 먼저 입력합니다.
 		if(typeof OHIExtension != 'undefined' && OHIExtension.isPartialEnabled() &&
-		   (e.keyCode==8 || e.keyCode==9 || e.keyCode==13 || e.keyCode==17 || e.keyCode==18 || e.keyCode==32 ||
-		    e.keyCode==91 || e.keyCode==93 || e.keyCode==27 || e.keyCode>=35 && e.keyCode<=40 ||
-		    e.keyCode==45 || e.keyCode==46)) OHIExtension.flushPartialChord(f,e);
+		   (e.keyCode==8 || e.keyCode==9 || e.keyCode==13 || // Backspace, Tab, Enter
+		   	e.keyCode==17 || e.keyCode==18 || e.keyCode==32 || // Ctrl, Alt, Space
+		    e.keyCode==91 || e.keyCode==93 || e.keyCode==27 || // Meta, Menu, Esc
+		    e.keyCode>=35 && e.keyCode<=40 || // End(35), Home(36), 방향 글쇠(37~40)
+		    e.keyCode==45 || e.keyCode==46)) OHIExtension.flushPartialChord(f,e); // Insert, Delete
 
 		if(e.keyCode>=96 && e.keyCode<=111) { // 오른쪽 숫자판(키패드) 글쇠일 때
 			onkeypress_skip=1;
